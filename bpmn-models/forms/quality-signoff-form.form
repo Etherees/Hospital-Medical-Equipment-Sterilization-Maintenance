@@ -1,0 +1,71 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.5.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.25.0"
+  },
+  "schemaVersion": 16,
+  "id": "quality-signoff-form",
+  "type": "default",
+  "components": [
+    {
+      "text": "# Final Quality Sign-Off & Release Authorization\nFinal QA review prior to sterile barrier packaging release to surgical theatres.",
+      "type": "text",
+      "id": "Text_SignoffTitle"
+    },
+    {
+      "label": "Sterilization Batch Request ID",
+      "type": "textfield",
+      "id": "Field_RequestId",
+      "key": "requestId",
+      "disabled": true
+    },
+    {
+      "label": "Chemical Indicator Strip Integrity Verified",
+      "type": "checkbox",
+      "id": "Field_ChemIndicatorCheck",
+      "key": "chemicalIndicatorPassed",
+      "description": "Class 5/6 multi-parameter strip uniform color transition verified."
+    },
+    {
+      "label": "Packaging & Sterile Barrier Seal Integrity",
+      "type": "checkbox",
+      "id": "Field_BarrierIntegrity",
+      "key": "barrierIntegrityPassed",
+      "description": "Pouch heat seals continuous without channels, tears, or condensation."
+    },
+    {
+      "label": "Moisture / Wet Pack Inspection",
+      "type": "radio",
+      "id": "Field_DrynessCheck",
+      "key": "drynessCheckPassed",
+      "values": [
+        { "label": "Dry Pack Verified - No droplets or dampness", "value": "true" },
+        { "label": "Wet Pack Detected - Immediate Quarantine Rejection", "value": "false" }
+      ],
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Authorized Release Decision",
+      "type": "radio",
+      "id": "Field_FinalDecision",
+      "key": "finalApprovalPassed",
+      "values": [
+        { "label": "Approved - Issue Certificate & Release to OR", "value": "true" },
+        { "label": "Rejected - Flag Corrective Maintenance & Quarantine", "value": "false" }
+      ],
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "QA Manager Authorization Signature / Notes",
+      "type": "textarea",
+      "id": "Field_QASignature",
+      "key": "qaNotes"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+# Stage 1: Build
+FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
+WORKDIR /app
+COPY backend-springboot/pom.xml .
+COPY backend-springboot/src ./src
+RUN mvn clean package -DskipTests
+
+# Stage 2: Production JRE Runtime
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+LABEL maintainer="STERILFLOW Engineering Team"
+LABEL system="Hospital Medical Equipment Sterilization & Maintenance Platform"
+
+RUN addgroup -S sterilflow && adduser -S sterilflow -G sterilflow
+USER sterilflow
+
+COPY --from=builder /app/target/sterilflow-backend-1.0.0.jar app.jar
+
+ENV SPRING_PROFILES_ACTIVE=prod \
+    SERVER_PORT=8080
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

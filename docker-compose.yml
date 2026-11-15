@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sterilflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sterilflow}
+      POSTGRES_USER: ${POSTGRES_USER:-sterilflow_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-SterilFlow_Secure2026!}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sterilflow_admin} -d ${POSTGRES_DB:-sterilflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sterilflow-net
+
+  # 2. Camunda 8 Zeebe Broker Engine
+  zeebe:
+    image: camunda/zeebe:8.5.5
+    container_name: sterilflow-zeebe
+    restart: unless-stopped
+    environment:
+      - ZEEBE_BROKER_GATEWAY_ENABLE=true
+      - ZEEBE_BROKER_NETWORK_HOST=0.0.0.0
+      - ZEEBE_BROKER_DATA_SNAPSHOTPERIOD=15m
+    ports:
+      - "26500:26500" # Gateway
+      - "9600:9600"   # Management
+    volumes:
+      - zeebe_data:/usr/local/zeebe/data
+    networks:
+      - sterilflow-net
+
+  # 3. STERILFLOW Spring Boot Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: sterilflow-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zeebe:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-sterilflow}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-sterilflow_admin}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-SterilFlow_Secure2026!}
+      ZEEBE_GATEWAY_ADDRESS: zeebe:26500
+      ZEEBE_PLAINTEXT: "true"
+      APP_MODE: hybrid
+    ports:
+      - "8080:8080"
+    networks:
+      - sterilflow-net
+
+  # 4. STERILFLOW React Frontend Web Portal
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: sterilflow-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "3000:80"
+    networks:
+      - sterilflow-net
+
+networks:
+  sterilflow-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  zeebe_data:

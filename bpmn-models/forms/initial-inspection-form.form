@@ -1,0 +1,66 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.5.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.25.0"
+  },
+  "schemaVersion": 16,
+  "id": "initial-inspection-form",
+  "type": "default",
+  "components": [
+    {
+      "text": "# Initial Instrument Inspection (CSSD Intake)\nVerify the integrity, bio-burden, and mechanical cleanliness of received surgical trays.",
+      "type": "text",
+      "id": "Text_Title"
+    },
+    {
+      "label": "Sterilization Request ID",
+      "type": "textfield",
+      "id": "Field_RequestId",
+      "key": "requestId",
+      "disabled": true
+    },
+    {
+      "label": "Operating Department",
+      "type": "textfield",
+      "id": "Field_Department",
+      "key": "department",
+      "disabled": true
+    },
+    {
+      "label": "Gross Bio-Burden Check Passed",
+      "type": "checkbox",
+      "id": "Field_BioBurdenPassed",
+      "key": "bioBurdenPassed",
+      "description": "Confirm instruments are free of gross blood, bone tissue, and saline crusting."
+    },
+    {
+      "label": "Mechanical Damage / Corrosion Check",
+      "type": "checkbox",
+      "id": "Field_DamageCheckPassed",
+      "key": "damageCheckPassed",
+      "description": "Scissors hinges oiled, forceps teeth aligned, blades seated properly."
+    },
+    {
+      "label": "Intake Technician Notes",
+      "type": "textarea",
+      "id": "Field_IntakeNotes",
+      "key": "intakeNotes",
+      "description": "Enter any observations regarding missing instruments or heavy contamination."
+    },
+    {
+      "label": "Approve for Automated Washer-Disinfector?",
+      "type": "radio",
+      "id": "Field_InspectionOutcome",
+      "key": "initialInspectionPassed",
+      "values": [
+        { "label": "Passed - Proceed to Automated Cleaning", "value": "true" },
+        { "label": "Failed - Tag for Manual Rework / Ultrasonic Bath", "value": "false" }
+      ],
+      "validate": {
+        "required": true
+      }
+    }
+  ]
+}

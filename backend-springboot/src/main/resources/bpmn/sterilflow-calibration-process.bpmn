@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_SterilflowCalibration"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.25.0">
+
+  <bpmn:process id="biomedical-engineer-calibration"
+                name="Biomedical Engineer Calibration Process"
+                isExecutable="true">
+
+    <bpmn:startEvent id="StartEvent_CalibRequest" name="Calibration Requested">
+      <bpmn:outgoing>Flow_C01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- 1. Log Ticket -->
+    <bpmn:serviceTask id="Task_LogCalibrationTicket" name="Log Calibration Ticket">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="log-calibration-ticket" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C01</bpmn:incoming>
+      <bpmn:outgoing>Flow_C02</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- 2. Assign Biomedical Engineer -->
+    <bpmn:userTask id="Task_AssignEngineer" name="Assign Biomedical Engineer">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="biomedical-engineering" />
+        <zeebe:formDefinition formKey="camunda-forms:bpmn:calibration-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C02</bpmn:incoming>
+      <bpmn:outgoing>Flow_C03</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- 3. Equipment Assessment -->
+    <bpmn:userTask id="Task_EquipmentAssessment" name="Equipment Assessment &amp; Visual Check">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="biomedical-engineering" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C03</bpmn:incoming>
+      <bpmn:outgoing>Flow_C04</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- 4. Execute Calibration -->
+    <bpmn:serviceTask id="Task_ExecuteSensorCalibration" name="Execute Precision Sensor &amp; Pressure Calibration">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="execute-sensor-calibration" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C04</bpmn:incoming>
+      <bpmn:outgoing>Flow_C05</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- 5. Calibration Verification -->
+    <bpmn:userTask id="Task_CalibrationVerification" name="Calibration Verification &amp; Tolerance Sign-Off">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="biomedical-lead" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C05</bpmn:incoming>
+      <bpmn:outgoing>Flow_C06</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- 6. Exclusive Gateway: Tolerance Passed? -->
+    <bpmn:exclusiveGateway id="Gateway_TolerancePassed" name="Within ISO Tolerances?" default="Flow_TolerancePassedYes">
+      <bpmn:incoming>Flow_C06</bpmn:incoming>
+      <bpmn:outgoing>Flow_TolerancePassedYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_TolerancePassedNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Success Branch -->
+    <bpmn:serviceTask id="Task_IssueCalibrationCert" name="Issue NIST-Traceable Calibration Certificate">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="issue-calibration-cert" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TolerancePassedYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_C07</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_UpdateCalibrationExpiry" name="Update Calibration Schedule &amp; Expiry">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="update-calibration-expiry" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_C07</bpmn:incoming>
+      <bpmn:outgoing>Flow_C08</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_CalibrationCertified" name="Calibration Certified &amp; Released">
+      <bpmn:incoming>Flow_C08</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Failure Branch -->
+    <bpmn:serviceTask id="Task_QuarantineDefectiveSubsystem" name="Quarantine Defective Subsystem &amp; Order Replacement">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="quarantine-defective-subsystem" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TolerancePassedNo</bpmn:incoming>
+      <bpmn:outgoing>Flow_C09</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_CalibrationFailed" name="Calibration Failed (Decommissioned)">
+      <bpmn:incoming>Flow_C09</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_C01" sourceRef="StartEvent_CalibRequest" targetRef="Task_LogCalibrationTicket" />
+    <bpmn:sequenceFlow id="Flow_C02" sourceRef="Task_LogCalibrationTicket" targetRef="Task_AssignEngineer" />
+    <bpmn:sequenceFlow id="Flow_C03" sourceRef="Task_AssignEngineer" targetRef="Task_EquipmentAssessment" />
+    <bpmn:sequenceFlow id="Flow_C04" sourceRef="Task_EquipmentAssessment" targetRef="Task_ExecuteSensorCalibration" />
+    <bpmn:sequenceFlow id="Flow_C05" sourceRef="Task_ExecuteSensorCalibration" targetRef="Task_CalibrationVerification" />
+    <bpmn:sequenceFlow id="Flow_C06" sourceRef="Task_CalibrationVerification" targetRef="Gateway_TolerancePassed" />
+    <bpmn:sequenceFlow id="Flow_TolerancePassedYes" name="Yes (Within ±0.5%)" sourceRef="Gateway_TolerancePassed" targetRef="Task_IssueCalibrationCert" />
+    <bpmn:sequenceFlow id="Flow_TolerancePassedNo" name="No (Exceeds Limits)" sourceRef="Gateway_TolerancePassed" targetRef="Task_QuarantineDefectiveSubsystem">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= tolerancePassed = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_C07" sourceRef="Task_IssueCalibrationCert" targetRef="Task_UpdateCalibrationExpiry" />
+    <bpmn:sequenceFlow id="Flow_C08" sourceRef="Task_UpdateCalibrationExpiry" targetRef="EndEvent_CalibrationCertified" />
+    <bpmn:sequenceFlow id="Flow_C09" sourceRef="Task_QuarantineDefectiveSubsystem" targetRef="EndEvent_CalibrationFailed" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Calibration">
+    <bpmndi:BPMNPlane id="BPMNPlane_Calibration" bpmnElement="biomedical-engineer-calibration">
+      <bpmndi:BPMNShape id="StartEvent_CalibRequest_di" bpmnElement="StartEvent_CalibRequest">
+        <dc:Bounds x="182" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="172" y="205" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LogCalibrationTicket_di" bpmnElement="Task_LogCalibrationTicket">
+        <dc:Bounds x="270" y="140" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AssignEngineer_di" bpmnElement="Task_AssignEngineer">
+        <dc:Bounds x="430" y="140" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EquipmentAssessment_di" bpmnElement="Task_EquipmentAssessment">
+        <dc:Bounds x="590" y="140" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ExecuteSensorCalibration_di" bpmnElement="Task_ExecuteSensorCalibration">
+        <dc:Bounds x="750" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CalibrationVerification_di" bpmnElement="Task_CalibrationVerification">
+        <dc:Bounds x="920" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_TolerancePassed_di" bpmnElement="Gateway_TolerancePassed" isMarkerVisible="true">
+        <dc:Bounds x="1095" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1089" y="117.5" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_IssueCalibrationCert_di" bpmnElement="Task_IssueCalibrationCert">
+        <dc:Bounds x="1200" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdateCalibrationExpiry_di" bpmnElement="Task_UpdateCalibrationExpiry">
+        <dc:Bounds x="1370" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_CalibrationCertified_di" bpmnElement="EndEvent_CalibrationCertified">
+        <dc:Bounds x="1542" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1532" y="205" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_QuarantineDefectiveSubsystem_di" bpmnElement="Task_QuarantineDefectiveSubsystem">
+        <dc:Bounds x="1200" y="260" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_CalibrationFailed_di" bpmnElement="EndEvent_CalibrationFailed">
+        <dc:Bounds x="1382" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1359" y="325" width="83" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="Flow_C01_di" bpmnElement="Flow_C01">
+        <di:waypoint x="218" y="180" />
+        <di:waypoint x="270" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C02_di" bpmnElement="Flow_C02">
+        <di:waypoint x="390" y="180" />
+        <di:waypoint x="430" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C03_di" bpmnElement="Flow_C03">
+        <di:waypoint x="550" y="180" />
+        <di:waypoint x="590" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C04_di" bpmnElement="Flow_C04">
+        <di:waypoint x="720" y="180" />
+        <di:waypoint x="750" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C05_di" bpmnElement="Flow_C05">
+        <di:waypoint x="880" y="180" />
+        <di:waypoint x="920" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C06_di" bpmnElement="Flow_C06">
+        <di:waypoint x="1050" y="180" />
+        <di:waypoint x="1095" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TolerancePassedYes_di" bpmnElement="Flow_TolerancePassedYes">
+        <di:waypoint x="1145" y="180" />
+        <di:waypoint x="1200" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1147" y="162" width="52" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TolerancePassedNo_di" bpmnElement="Flow_TolerancePassedNo">
+        <di:waypoint x="1120" y="205" />
+        <di:waypoint x="1120" y="300" />
+        <di:waypoint x="1200" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1125" y="250" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C07_di" bpmnElement="Flow_C07">
+        <di:waypoint x="1330" y="180" />
+        <di:waypoint x="1370" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C08_di" bpmnElement="Flow_C08">
+        <di:waypoint x="1500" y="180" />
+        <di:waypoint x="1542" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C09_di" bpmnElement="Flow_C09">
+        <di:waypoint x="1330" y="300" />
+        <di:waypoint x="1382" y="300" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

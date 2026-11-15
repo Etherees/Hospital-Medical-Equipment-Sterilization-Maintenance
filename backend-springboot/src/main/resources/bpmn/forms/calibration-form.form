@@ -1,0 +1,67 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.5.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.25.0"
+  },
+  "schemaVersion": 16,
+  "id": "calibration-form",
+  "type": "default",
+  "components": [
+    {
+      "text": "# Biomedical Engineer Calibration Record\nPrecision sensor tuning and transducer calibration complying with ISO 13485 / 17025 standards.",
+      "type": "text",
+      "id": "Text_CalibTitle"
+    },
+    {
+      "label": "Equipment ID",
+      "type": "textfield",
+      "id": "Field_EquipmentId",
+      "key": "equipmentId",
+      "disabled": true
+    },
+    {
+      "label": "Assigned Biomedical Engineer",
+      "type": "textfield",
+      "id": "Field_EngineerName",
+      "key": "engineerName",
+      "validate": { "required": true }
+    },
+    {
+      "label": "Primary Calibration Standard Used",
+      "type": "select",
+      "id": "Field_StandardUsed",
+      "key": "standardUsed",
+      "values": [
+        { "label": "Fluke 754 NIST Documenting Process Calibrator", "value": "Fluke 754 NIST" },
+        { "label": "Omega CL3512A High-Precision RTD Simulator", "value": "Omega CL3512A RTD" },
+        { "label": "Druck DPI 610 Precision Pneumatic Calibrator", "value": "Druck DPI 610" }
+      ]
+    },
+    {
+      "label": "Measured Sensor Drift Percentage (%)",
+      "type": "number",
+      "id": "Field_DriftPercent",
+      "key": "accuracyDriftPercent",
+      "description": "Allowable tolerance range is between -0.5% and +0.5%."
+    },
+    {
+      "label": "Tolerance Conformance Result",
+      "type": "radio",
+      "id": "Field_ToleranceResult",
+      "key": "tolerancePassed",
+      "values": [
+        { "label": "Passed (Within ±0.5% Tolerance)", "value": "true" },
+        { "label": "Failed (Exceeds Limits - Decommission)", "value": "false" }
+      ],
+      "validate": { "required": true }
+    },
+    {
+      "label": "Engineering Observations & Next Due Date",
+      "type": "textarea",
+      "id": "Field_CalibNotes",
+      "key": "calibrationNotes"
+    }
+  ]
+}

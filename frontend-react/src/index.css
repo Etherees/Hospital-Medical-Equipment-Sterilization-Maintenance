@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #050706;
+    color: #F5F7F6;
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B100E;
+}
+::-webkit-scrollbar-thumb {
+  background: #252C28;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #20F59A;
+}
+
+/* Subtle crosshair grid overlay */
+.bg-tech-grid {
+  background-size: 32px 32px;
+  background-image: 
+    radial-gradient(circle, rgba(32, 245, 154, 0.08) 1px, transparent 1px);
+}
+
+/* Technical line glow */
+.tech-glow {
+  filter: drop-shadow(0 0 6px rgba(32, 245, 154, 0.4));
+}
+
+.tech-glow-red {
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.5));
+}
+
+.tech-glow-amber {
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+}
+
+/* Pulse animation for live indicators */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.97); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Realistic Medical Emergency Alarm Strobe / Beacon Blinking */
+@keyframes alarm-strobe {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.95)) drop-shadow(0 0 4px rgba(239, 68, 68, 0.8));
+    transform: scale(1.12);
+  }
+  50% {
+    opacity: 0.2;
+    filter: drop-shadow(0 0 1px rgba(239, 68, 68, 0.1));
+    transform: scale(0.94);
+  }
+}
+
+.animate-alarm-blink {
+  animation: alarm-strobe 0.85s ease-in-out infinite;
+}
+
+/* Realistic Biohazard Quarantined Strobe Alert */
+@keyframes quarantine-strobe {
+  0%, 100% {
+    opacity: 1;
+    background-color: rgba(220, 38, 38, 0.4);
+    border-color: rgba(239, 68, 68, 0.95);
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
+    color: #fecaca;
+  }
+  50% {
+    opacity: 0.4;
+    background-color: rgba(127, 29, 29, 0.15);
+    border-color: rgba(239, 68, 68, 0.25);
+    box-shadow: 0 0 2px rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+  }
+}
+
+.animate-quarantine-blink {
+  animation: quarantine-strobe 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

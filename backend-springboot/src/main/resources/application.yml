@@ -1,0 +1,69 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: sterilflow-backend
+  profiles:
+    active: dev
+
+  datasource:
+    url: jdbc:h2:mem:sterilflowdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driverClassName: org.h2.Driver
+    username: sa
+    password: 
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# Camunda 8 Zeebe Configuration
+zeebe:
+  client:
+    broker:
+      gateway-address: ${ZEEBE_GATEWAY_ADDRESS:localhost:26500}
+    security:
+      plaintext: ${ZEEBE_PLAINTEXT:true}
+    cloud:
+      cluster-id: ${ZEEBE_CLUSTER_ID:}
+      client-id: ${ZEEBE_CLIENT_ID:}
+      client-secret: ${ZEEBE_CLIENT_SECRET:}
+      region: ${ZEEBE_REGION:bru-2}
+    worker:
+      default-name: sterilflow-worker
+      max-jobs-active: 32
+      threads: 4
+
+sterilflow:
+  mode: ${APP_MODE:hybrid} # hybrid = attempts Zeebe connection, gracefully activates embedded async engine if cluster unavailable
+  simulation:
+    autoclave-cycle-duration-sec: 15
+    auto-advance-tasks: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/sterilflow}
+    username: ${SPRING_DATASOURCE_USERNAME:sterilflow_admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:SterilFlow_Secure2026!}
+    driverClassName: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false

@@ -1,0 +1,52 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.5.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.25.0"
+  },
+  "schemaVersion": 16,
+  "id": "cleaning-rework-form",
+  "type": "default",
+  "components": [
+    {
+      "text": "# Ultrasonic Cleaning & Enzymatic Rework\nPerform intensified manual decontamination protocol for failed automated cleaning cycles.",
+      "type": "text",
+      "id": "Text_ReworkTitle"
+    },
+    {
+      "label": "Rework Protocol Used",
+      "type": "select",
+      "id": "Field_ReworkMethod",
+      "key": "reworkMethod",
+      "values": [
+        { "label": "Multi-Enzyme Cavitation Bath (40 kHz, 15 min)", "value": "ultrasonic_enzyme" },
+        { "label": "Neutral pH Detergent Manual Scrub & Lumen Flush", "value": "manual_lumen_flush" },
+        { "label": "Thermal Disinfection Extended Rinse (93°C, 10 min)", "value": "thermal_extended" }
+      ],
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Residual Protein Test (Biuret/Ninhydrin Swab)",
+      "type": "radio",
+      "id": "Field_ProteinSwab",
+      "key": "proteinSwabPassed",
+      "values": [
+        { "label": "Negative (< 1 µg residual protein) - Clean", "value": "true" },
+        { "label": "Positive (Protein detected) - Repeat Scrub", "value": "false" }
+      ],
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "label": "Confirm Cleaning Successful",
+      "type": "checkbox",
+      "id": "Field_CleaningPassed",
+      "key": "cleaningPassed",
+      "description": "Check to indicate cleaning is verified successful and allow workflow to proceed to Autoclave multi-tray processing."
+    }
+  ]
+}

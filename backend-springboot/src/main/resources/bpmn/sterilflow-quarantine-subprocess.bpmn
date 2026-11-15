@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_SterilflowQuarantine"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.25.0">
+
+  <bpmn:process id="bio-contamination-quarantine"
+                name="Bio-Contamination Quarantine and Re-Autoclave Process"
+                isExecutable="true">
+
+    <bpmn:startEvent id="StartEvent_QuarantineTriggered" name="Contamination Detected">
+      <bpmn:outgoing>Flow_Q01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- 1. Quarantine Initiation -->
+    <bpmn:serviceTask id="Task_QuarantineInitiation" name="Quarantine Initiation &amp; Biohazard Isolation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="quarantine-initiation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Q01</bpmn:incoming>
+      <bpmn:outgoing>Flow_Q02</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- 2. Record Failure -->
+    <bpmn:serviceTask id="Task_RecordFailure" name="Record Indicator Failure &amp; Audit Trail">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="record-failure" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Q02</bpmn:incoming>
+      <bpmn:outgoing>Flow_Q03</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- 3. Re-cleaning & Decontamination -->
+    <bpmn:userTask id="Task_RecleanInstrument" name="Enzymatic Re-cleaning &amp; Ultrasonic Wash">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="cssd-technician" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Q03</bpmn:incoming>
+      <bpmn:outgoing>Flow_Q04</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- 4. Re-autoclave -->
+    <bpmn:serviceTask id="Task_ReautoclaveProcessing" name="Re-Autoclave Extended Cycle (134°C / 18 min)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="reautoclave-processing" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Q04</bpmn:incoming>
+      <bpmn:outgoing>Flow_Q05</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- 5. Repeat Verification -->
+    <bpmn:serviceTask id="Task_RepeatIndicatorVerification" name="Repeat Chemical &amp; Biological Verification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="repeat-indicator-verification" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Q05</bpmn:incoming>
+      <bpmn:outgoing>Flow_Q06</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- 6. Quality Re-Inspection -->
+    <bpmn:userTask id="Task_QualityReinspection" name="Quality Re-Inspection &amp; Clearance Sign-off">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition candidateGroups="qa-specialist" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Q06</bpmn:incoming>
+      <bpmn:outgoing>Flow_Q07</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_QuarantineCleared" name="Quarantine Cleared &amp; Sterility Verified">
+      <bpmn:incoming>Flow_Q07</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_Q01" sourceRef="StartEvent_QuarantineTriggered" targetRef="Task_QuarantineInitiation" />
+    <bpmn:sequenceFlow id="Flow_Q02" sourceRef="Task_QuarantineInitiation" targetRef="Task_RecordFailure" />
+    <bpmn:sequenceFlow id="Flow_Q03" sourceRef="Task_RecordFailure" targetRef="Task_RecleanInstrument" />
+    <bpmn:sequenceFlow id="Flow_Q04" sourceRef="Task_RecleanInstrument" targetRef="Task_ReautoclaveProcessing" />
+    <bpmn:sequenceFlow id="Flow_Q05" sourceRef="Task_ReautoclaveProcessing" targetRef="Task_RepeatIndicatorVerification" />
+    <bpmn:sequenceFlow id="Flow_Q06" sourceRef="Task_RepeatIndicatorVerification" targetRef="Task_QualityReinspection" />
+    <bpmn:sequenceFlow id="Flow_Q07" sourceRef="Task_QualityReinspection" targetRef="EndEvent_QuarantineCleared" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Quarantine">
+    <bpmndi:BPMNPlane id="BPMNPlane_Quarantine" bpmnElement="bio-contamination-quarantine">
+      <bpmndi:BPMNShape id="StartEvent_QuarantineTriggered_di" bpmnElement="StartEvent_QuarantineTriggered">
+        <dc:Bounds x="182" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="166" y="205" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_QuarantineInitiation_di" bpmnElement="Task_QuarantineInitiation">
+        <dc:Bounds x="270" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RecordFailure_di" bpmnElement="Task_RecordFailure">
+        <dc:Bounds x="440" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RecleanInstrument_di" bpmnElement="Task_RecleanInstrument">
+        <dc:Bounds x="610" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReautoclaveProcessing_di" bpmnElement="Task_ReautoclaveProcessing">
+        <dc:Bounds x="780" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RepeatIndicatorVerification_di" bpmnElement="Task_RepeatIndicatorVerification">
+        <dc:Bounds x="950" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_QualityReinspection_di" bpmnElement="Task_QualityReinspection">
+        <dc:Bounds x="1120" y="140" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_QuarantineCleared_di" bpmnElement="EndEvent_QuarantineCleared">
+        <dc:Bounds x="1292" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1272" y="205" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Flow_Q01_di" bpmnElement="Flow_Q01">
+        <di:waypoint x="218" y="180" />
+        <di:waypoint x="270" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Q02_di" bpmnElement="Flow_Q02">
+        <di:waypoint x="400" y="180" />
+        <di:waypoint x="440" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Q03_di" bpmnElement="Flow_Q03">
+        <di:waypoint x="570" y="180" />
+        <di:waypoint x="610" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Q04_di" bpmnElement="Flow_Q04">
+        <di:waypoint x="740" y="180" />
+        <di:waypoint x="780" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Q05_di" bpmnElement="Flow_Q05">
+        <di:waypoint x="910" y="180" />
+        <di:waypoint x="950" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Q06_di" bpmnElement="Flow_Q06">
+        <di:waypoint x="1080" y="180" />
+        <di:waypoint x="1120" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Q07_di" bpmnElement="Flow_Q07">
+        <di:waypoint x="1250" y="180" />
+        <di:waypoint x="1292" y="180" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
