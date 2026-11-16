@@ -116,8 +116,9 @@
       <bpmn:outgoing>Flow_TraysCompleted</bpmn:outgoing>
 
       <bpmn:multiInstanceLoopCharacteristics isSequential="false">
-        <bpmn:loopDataInputRef>trays</bpmn:loopDataInputRef>
-        <bpmn:inputDataItem name="currentTray" />
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="= surgicalTrays" inputElement="currentTray" />
+        </bpmn:extensionElements>
       </bpmn:multiInstanceLoopCharacteristics>
 
       <!-- Sub Start Event -->
