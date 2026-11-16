@@ -331,34 +331,3 @@ export default function WorkflowTrackingPage() {
     </div>
   );
 }
-              Live Process Variables
-            </h2>
-          </div>
-
-          <p className="text-xs text-steril-muted">
-            Scoped Zeebe variables propagated between parent process and multi-instance child activities:
-          </p>
-
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {Object.entries(variables).map(([key, val]) => (
-              <div key={key} className="p-2 rounded bg-steril-surface border border-steril-border flex items-center justify-between text-xs font-mono">
-                <span className="text-steril-muted text-[11px] truncate max-w-[130px]">{key}</span>
-                <span className="text-steril-mint font-bold">{String(val)}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="pt-2 border-t border-steril-border/60">
-            <Link
-              to="/tasks"
-              className="w-full py-2 rounded-xl bg-steril-surface border border-steril-border hover:border-steril-green/50 text-steril-text font-medium text-xs transition-all flex items-center justify-center space-x-1.5"
-            >
-              <span>View Assigned Tasks in Inbox</span>
-              <ArrowRight className="w-3.5 h-3.5 text-steril-green" />
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
