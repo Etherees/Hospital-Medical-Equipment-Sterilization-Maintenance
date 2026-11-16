@@ -132,7 +132,7 @@
           <zeebe:taskDefinition type="io.camunda:http-json:1" />
           <zeebe:ioMapping>
             <zeebe:input source="= &quot;GET&quot;" target="method" />
-            <zeebe:input source="= &quot;http://localhost:8080/api/autoclaves/AC-01/telemetry&quot;" target="url" />
+            <zeebe:input source="= &quot;http://localhost:8085/api/autoclaves/AC-01/telemetry&quot;" target="url" />
           </zeebe:ioMapping>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_Sub_01</bpmn:incoming>
@@ -309,7 +309,7 @@
     <!-- 12. Service Task: Slack / Teams / Email Outbound Connector -->
     <bpmn:serviceTask id="Task_SendNotification" name="Alert OR Scheduling Desk (Slack/Teams/Email Connector)">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="io.camunda:email:1" />
+        <zeebe:taskDefinition type="send-notification" />
         <zeebe:ioMapping>
           <zeebe:input source="= &quot;or-scheduling@hospital.internal&quot;" target="to" />
           <zeebe:input source="= &quot;[STERILFLOW RELEASED] Trays Ready for OR - Batch #&quot; + requestId" target="subject" />
