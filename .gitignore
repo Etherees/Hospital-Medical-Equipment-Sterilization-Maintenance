@@ -32,3 +32,5 @@ Thumbs.db
 .m2/
 .mvn/wrapper/maven-wrapper.jar
 package-lock.json.bak
+
+__pycache__/

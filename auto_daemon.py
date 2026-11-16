@@ -16,6 +16,7 @@ JOB_TYPES = [
     "generate-sterilization-certificate",
     "send-notification",
     "io.camunda:email:1",
+    "io.camunda:http-json:1",
     "log-calibration-ticket",
     "execute-sensor-calibration",
     "issue-calibration-cert",
@@ -46,15 +47,29 @@ def post_json(url, data):
     except Exception as e:
         return None
 
-def complete_job(jkey, variables):
-    url = f"{CAMUNDA_BASE}/v2/jobs/{jkey}/completion"
-    payload = {"variables": variables}
-    res = post_json(url, payload)
-    return res is not None
+def check_camunda_connection():
+    print("[*] Connecting to Camunda 8 at http://localhost:8080 ...", flush=True)
+    retries = 0
+    while True:
+        try:
+            req = urllib.request.Request(f"{CAMUNDA_BASE}/v2/topology", method="GET")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                if resp.status == 200:
+                    print("[OK] Connected to Camunda 8 Zeebe Cluster successfully!", flush=True)
+                    return True
+        except Exception:
+            retries += 1
+            if retries % 5 == 1:
+                print("[*] Waiting for Camunda 8 cluster to be ready on port 8080...", flush=True)
+            time.sleep(2)
 
 def run_daemon():
+    check_camunda_connection()
     print("[DAEMON] Sterilflow Universal Workflow Daemon Active & Listening...", flush=True)
+    print("[DAEMON] Any workflow started from Camunda Desktop Modeler, Operate, or Launcher will auto-advance to end.", flush=True)
     step_count = 0
+    last_heartbeat = time.time()
+
     while True:
         work_done = False
         for jtype in JOB_TYPES:
@@ -97,6 +112,10 @@ def run_daemon():
                     calib_required = False
                     if isinstance(current_tray, dict):
                         calib_required = current_tray.get("calibrationRequired", False)
+                    if "surgicalTrays" in unpacked and isinstance(unpacked["surgicalTrays"], list) and len(unpacked["surgicalTrays"]) > 0:
+                        first_tray = unpacked["surgicalTrays"][0]
+                        if isinstance(first_tray, dict) and "calibrationRequired" in first_tray:
+                            calib_required = first_tray["calibrationRequired"]
 
                     # 3. Construct completion payload preserving user intent
                     vars_to_send = {
@@ -117,6 +136,10 @@ def run_daemon():
                     if elem == "Task_RegisterEquipment" and unpacked:
                         vars_to_send.update(unpacked)
 
+                    # If rework was executed, set cleaningPassed = True to exit rework loop
+                    if elem == "Task_CleaningRework":
+                        vars_to_send["cleaningPassed"] = True
+
                     # For quality inspection, preserve tray calibration state
                     if elem == "Task_QualityInspection":
                         vars_to_send["currentTray"] = {
@@ -129,7 +152,12 @@ def run_daemon():
                     step_count += 1
                     print(f"[{time.strftime('%H:%M:%S')}] Step {step_count}: Node <{elem}> ({jtype}) Completed for Instance {inst}", flush=True)
 
+        # Print heartbeat every 15 seconds if idle so user knows daemon is alive
         if not work_done:
+            now = time.time()
+            if now - last_heartbeat > 15:
+                print(f"[{time.strftime('%H:%M:%S')}] [DAEMON] Listening for incoming workflow instances... (Steps completed so far: {step_count})", flush=True)
+                last_heartbeat = now
             time.sleep(0.3)
 
 if __name__ == "__main__":

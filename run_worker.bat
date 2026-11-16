@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title STERILFLOW Camunda 8 Real-Time Process Worker
+title STERILFLOW 2.0 - Camunda 8 Live Process Worker Daemon
 color 0A
 
 echo =====================================================================
@@ -20,6 +20,11 @@ echo [*] Supported Process Workflows:
 echo     1. Main Sterilization Process    (sterilflow-main-process)
 echo     2. Biomedical Calibration        (biomedical-engineer-calibration)
 echo     3. Bio-Contamination Quarantine  (bio-contamination-quarantine)
+echo.
+echo [*] What this worker does:
+echo     - Listens for tasks started from Camunda Desktop Modeler,
+echo       Camunda Operate, the STERILFLOW Web App, or launch_process.bat.
+echo     - Automatically advances each step and gateway until the End Event.
 echo.
 echo [*] Starting Real-Time Daemon... (Keep this window open during your demo)
 echo =====================================================================
