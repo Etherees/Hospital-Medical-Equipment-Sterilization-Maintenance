@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   GitBranch, CheckCircle2, Clock, AlertTriangle, PlayCircle, 
-  Layers, ShieldCheck, RefreshCw, ArrowRight, Eye, AlertOctagon, Terminal
+  Layers, ShieldCheck, RefreshCw, ArrowRight, Eye, AlertOctagon, Terminal,
+  ZoomIn, ZoomOut, Maximize2, ExternalLink
 } from 'lucide-react';
 import { sterilApi } from '../services/api';
 
@@ -12,6 +13,7 @@ export default function WorkflowTrackingPage() {
   const [selectedInstanceId, setSelectedInstanceId] = useState(id || '');
   const [workflowData, setWorkflowData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Load instances
   const fetchInstances = async () => {
@@ -186,93 +188,149 @@ export default function WorkflowTrackingPage() {
         </div>
       </div>
 
-      {/* BPMN Process Architecture Visualizer & Process Variables Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* 2D BPMN Execution Flow Diagram */}
-        <div className="lg:col-span-8 p-6 rounded-2xl bg-steril-charcoal border border-steril-border flex flex-col justify-between space-y-4 relative overflow-hidden">
-          <div className="flex items-center justify-between pb-2 border-b border-steril-border/60">
+      {/* Full BPMN 2.0 Process Architecture Visualizer */}
+      <div className="p-6 rounded-2xl bg-steril-charcoal border border-steril-border space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-steril-border/60 gap-3">
+          <div className="flex items-center space-x-3">
             <span className="text-xs font-mono font-bold text-steril-text uppercase tracking-wider">
-              BPMN 2.0 Sequence Flow Architecture
+              BPMN 2.0 Sequence Flow Architecture (Siemens Healthineers / Camunda 8)
             </span>
-            <span className="text-[11px] font-mono text-steril-green bg-steril-surface px-2 py-0.5 rounded border border-steril-border">
-              TOKEN POSITION: {req?.currentStage || 'INSPECTION'}
+            <span className="text-[11px] font-mono text-steril-green bg-steril-surface px-2.5 py-0.5 rounded border border-steril-border">
+              TOKEN POSITION: {req?.currentStage || 'INITIAL_INSPECTION'}
             </span>
           </div>
 
-          {/* 2D BPMN Architecture SVG Flow */}
-          <div className="py-4 overflow-x-auto">
-            <svg viewBox="0 0 760 200" className="w-full min-w-[650px] h-48">
-              {/* Start Event */}
-              <circle cx="35" cy="80" r="15" fill="#0B100E" stroke="#20F59A" strokeWidth="2.5" />
-              <polygon points="32,74 42,80 32,86" fill="#20F59A" />
-              <text x="35" y="112" fill="#929A96" fontSize="8" textAnchor="middle" fontFamily="monospace">START</text>
-
-              <line x1="50" y1="80" x2="80" y2="80" stroke="#20F59A" strokeWidth="1.5" />
-
-              {/* Service Task: Register */}
-              <rect x="80" y="55" width="85" height="50" rx="6" fill="#111815" stroke={activeIdx >= 0 ? '#20F59A' : '#252C28'} strokeWidth="1.5" />
-              <text x="122" y="77" fill="#F5F7F6" fontSize="8" textAnchor="middle" fontFamily="monospace">Register</text>
-              <text x="122" y="90" fill="#20F59A" fontSize="7" textAnchor="middle" fontFamily="monospace">Equipment</text>
-
-              <line x1="165" y1="80" x2="195" y2="80" stroke="#20F59A" strokeWidth="1.5" />
-
-              {/* User Task: Initial Inspection */}
-              <rect x="195" y="55" width="85" height="50" rx="6" fill="#111815" stroke={activeIdx >= 1 ? '#20F59A' : '#252C28'} strokeWidth="1.8" className={activeIdx === 1 ? 'tech-glow' : ''} />
-              <text x="237" y="77" fill="#F5F7F6" fontSize="8" textAnchor="middle" fontFamily="monospace">Initial</text>
-              <text x="237" y="90" fill="#83F7C2" fontSize="7" textAnchor="middle" fontFamily="monospace">Inspection</text>
-
-              <line x1="280" y1="80" x2="310" y2="80" stroke="#20F59A" strokeWidth="1.5" />
-
-              {/* Multi-Instance Subprocess: Parallel Trays */}
-              <rect x="310" y="40" width="145" height="80" rx="8" fill="#0B100E" stroke={activeIdx >= 3 ? '#20F59A' : '#252C28'} strokeWidth="2" strokeDasharray="3 3" />
-              <text x="382" y="58" fill="#20F59A" fontSize="8" textAnchor="middle" fontFamily="monospace">Parallel Trays (MI)</text>
-              {/* MI parallel bars marker ||| */}
-              <line x1="375" y1="110" x2="375" y2="116" stroke="#20F59A" strokeWidth="2" />
-              <line x1="382" y1="110" x2="382" y2="116" stroke="#20F59A" strokeWidth="2" />
-              <line x1="389" y1="110" x2="389" y2="116" stroke="#20F59A" strokeWidth="2" />
-
-              {/* Inside MI: Autoclave & Chem Check */}
-              <rect x="325" y="68" width="55" height="32" rx="4" fill="#151D19" stroke="#83F7C2" strokeWidth="1" />
-              <text x="352" y="86" fill="#F5F7F6" fontSize="7" textAnchor="middle" fontFamily="monospace">134°C Steam</text>
-
-              <rect x="390" y="68" width="55" height="32" rx="4" fill="#151D19" stroke="#83F7C2" strokeWidth="1" />
-              <text x="417" y="86" fill="#F5F7F6" fontSize="7" textAnchor="middle" fontFamily="monospace">Chem Check</text>
-
-              <line x1="455" y1="80" x2="485" y2="80" stroke="#20F59A" strokeWidth="1.5" />
-
-              {/* Call Activity: Calibration */}
-              <rect x="485" y="55" width="95" height="50" rx="6" fill="#111815" stroke={activeIdx >= 7 ? '#20F59A' : '#252C28'} strokeWidth="2" />
-              {/* Call activity thick border / plus */}
-              <text x="532" y="77" fill="#F5F7F6" fontSize="8" textAnchor="middle" fontFamily="monospace">Call Activity</text>
-              <text x="532" y="90" fill="#20F59A" fontSize="7" textAnchor="middle" fontFamily="monospace">Calibration</text>
-
-              <line x1="580" y1="80" x2="610" y2="80" stroke="#20F59A" strokeWidth="1.5" />
-
-              {/* User Task: Final Signoff */}
-              <rect x="610" y="55" width="85" height="50" rx="6" fill="#111815" stroke={activeIdx >= 8 ? '#20F59A' : '#252C28'} strokeWidth="1.8" className={activeIdx === 8 ? 'tech-glow' : ''} />
-              <text x="652" y="77" fill="#F5F7F6" fontSize="8" textAnchor="middle" fontFamily="monospace">Final Quality</text>
-              <text x="652" y="90" fill="#83F7C2" fontSize="7" textAnchor="middle" fontFamily="monospace">Sign-Off</text>
-
-              <line x1="695" y1="80" x2="725" y2="80" stroke="#20F59A" strokeWidth="1.5" />
-
-              {/* End Event */}
-              <circle cx="735" cy="80" r="15" fill="#0B100E" stroke="#20F59A" strokeWidth="3.5" />
-              <text x="735" y="112" fill="#20F59A" fontSize="8" textAnchor="middle" fontFamily="monospace">RELEASE</text>
-            </svg>
-          </div>
-
-          <div className="pt-2 border-t border-steril-border/60 flex items-center justify-between text-xs font-mono text-steril-muted">
-            <span>Orchestrated via Camunda 8 Zeebe Engine & strongly-typed @JobWorkers</span>
-            <span className="text-steril-green">ACTIVE SESSION</span>
+          {/* Interactive Zoom & Viewer Controls */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setZoomLevel(prev => Math.max(0.75, prev - 0.25))}
+              className="p-1.5 rounded-lg bg-steril-surface border border-steril-border hover:border-steril-green text-steril-muted hover:text-steril-text transition-all"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-[11px] font-mono text-steril-mint px-1">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              onClick={() => setZoomLevel(prev => Math.min(2.0, prev + 0.25))}
+              className="p-1.5 rounded-lg bg-steril-surface border border-steril-border hover:border-steril-green text-steril-muted hover:text-steril-text transition-all"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setZoomLevel(1)}
+              className="px-2 py-1 text-[11px] font-mono rounded-lg bg-steril-surface border border-steril-border hover:border-steril-green text-steril-muted hover:text-steril-text transition-all"
+            >
+              Reset
+            </button>
+            <a
+              href="/sterilflow-main-process.svg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-1 px-2.5 py-1 text-[11px] font-mono rounded-lg bg-steril-surface border border-steril-green/60 hover:bg-steril-green/10 text-steril-green transition-all"
+              title="Open full vector SVG in new browser tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Full Tab</span>
+            </a>
           </div>
         </div>
 
+        {/* High-Resolution SVG Canvas Viewport */}
+        <div className="w-full bg-[#050706] rounded-xl border border-steril-border/60 overflow-x-auto overflow-y-auto p-4 transition-all">
+          <div 
+            style={{ 
+              transform: `scale(${zoomLevel})`, 
+              transformOrigin: 'top left',
+              width: `${zoomLevel * 100}%`,
+              transition: 'transform 0.15s ease-out'
+            }}
+            className="min-w-[1100px]"
+          >
+            <img 
+              src="/sterilflow-main-process.svg" 
+              alt="STERILFLOW 2.0 BPMN Process Architecture" 
+              className="w-full h-auto select-none rounded-lg"
+            />
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-steril-border/60 flex flex-col sm:flex-row items-center justify-between text-xs font-mono text-steril-muted gap-2">
+          <span>Collaboration Pool: OR Staff | CSSD Sterilization | Quality Assurance</span>
+          <span className="text-steril-green flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-steril-green animate-pulse"></span>
+            <span>CAMUNDA 8 ZEEBE ACTIVE SESSION</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Process Variables & Live Telemetry Details */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
         {/* Process Variables Inspector */}
-        <div className="lg:col-span-4 p-6 rounded-2xl bg-steril-charcoal border border-steril-border space-y-4">
-          <div className="flex items-center space-x-2 pb-2 border-b border-steril-border/60">
-            <Terminal className="w-4 h-4 text-steril-mint" />
-            <h2 className="text-sm font-bold font-mono text-steril-text uppercase tracking-wider">
+        <div className="lg:col-span-8 p-6 rounded-2xl bg-steril-charcoal border border-steril-border space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-steril-border/60">
+            <div className="flex items-center space-x-2">
+              <Terminal className="w-4 h-4 text-steril-mint" />
+              <h2 className="text-sm font-bold font-mono text-steril-text uppercase tracking-wider">
+                Live Zeebe Process Variables (Data Contract &amp; Scoping)
+              </h2>
+            </div>
+            <span className="text-xs font-mono text-steril-muted">
+              {Object.keys(variables).length} Variables Scoped
+            </span>
+          </div>
+
+          <p className="text-xs text-steril-muted">
+            Scoped Zeebe variables propagated between parent process and multi-instance child activities:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+            {Object.entries(variables).map(([key, val]) => (
+              <div key={key} className="p-2.5 rounded-lg bg-steril-surface border border-steril-border flex items-center justify-between text-xs font-mono">
+                <span className="text-steril-muted text-[11px] truncate max-w-[160px]">{key}</span>
+                <span className="text-steril-mint font-bold truncate max-w-[140px] text-right">{String(val)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Action Navigation Card */}
+        <div className="lg:col-span-4 p-6 rounded-2xl bg-steril-charcoal border border-steril-border flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center space-x-2 pb-2 border-b border-steril-border/60">
+              <ShieldCheck className="w-4 h-4 text-steril-green" />
+              <h3 className="text-sm font-bold font-mono text-steril-text uppercase tracking-wider">
+                Operator Action
+              </h3>
+            </div>
+            <p className="text-xs text-steril-muted mt-3 leading-relaxed">
+              Active process tokens wait for user task completion in the Camunda Tasklist or background Zeebe JobWorker execution.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-steril-border/60">
+            <Link
+              to="/tasklist"
+              className="w-full py-2.5 rounded-xl bg-steril-green text-steril-black font-semibold text-xs transition-all flex items-center justify-center space-x-1.5 hover:bg-steril-mint shadow-glow-green-sm"
+            >
+              <span>Open Tasklist Inbox</span>
+              <ArrowRight className="w-4 h-4 text-steril-black" />
+            </Link>
+            <Link
+              to="/monitoring"
+              className="w-full py-2 rounded-xl bg-steril-surface border border-steril-border hover:border-steril-green text-steril-text font-medium text-xs transition-all flex items-center justify-center space-x-1.5"
+            >
+              <span>View Autoclave Telemetry</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
               Live Process Variables
             </h2>
           </div>
