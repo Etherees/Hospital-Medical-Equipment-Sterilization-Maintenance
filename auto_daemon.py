@@ -90,6 +90,7 @@ def run_daemon():
                     cleaning_passed = unpacked.get("cleaningPassed", raw_vars.get("cleaningPassed", True))
                     chemical_passed = unpacked.get("chemicalIndicatorPassed", raw_vars.get("chemicalIndicatorPassed", True))
                     final_passed = unpacked.get("finalApprovalPassed", raw_vars.get("finalApprovalPassed", True))
+                    tolerance_passed = unpacked.get("tolerancePassed", raw_vars.get("tolerancePassed", True))
                     
                     # Tray-level calibration check
                     current_tray = raw_vars.get("currentTray", {})
@@ -103,8 +104,9 @@ def run_daemon():
                         "cleaningPassed": cleaning_passed,
                         "chemicalIndicatorPassed": chemical_passed,
                         "finalApprovalPassed": final_passed,
-                        "calibrationPassed": True,
-                        "equipmentStatus": "AVAILABLE" if final_passed else "QUARANTINED",
+                        "tolerancePassed": tolerance_passed,
+                        "calibrationPassed": tolerance_passed,
+                        "equipmentStatus": "AVAILABLE" if (final_passed and tolerance_passed) else "QUARANTINED",
                         "trayStatus": "STERILIZED" if (cleaning_passed and chemical_passed) else "CONTAMINATED",
                         "notificationSent": True,
                         "certificateNumber": f"CERT-ISO11134-{int(time.time()) % 100000}",
