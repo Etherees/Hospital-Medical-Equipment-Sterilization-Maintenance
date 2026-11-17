@@ -56,7 +56,21 @@ if %ERRORLEVEL% equ 0 (
     timeout /t 3 /nobreak >nul
 )
 
-:: 4. Check & Start Vite React Frontend (Port 5173)
+:: 4. Check & Start Camunda 8 Interconnect Worker (auto_daemon.py)
+echo.
+echo [*] Checking Camunda 8 Automated Service Worker (auto_daemon.py)...
+tasklist /fi "windowtitle eq STERILFLOW Worker*" 2>nul | findstr /i "cmd.exe python.exe" >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    echo [OK] Camunda 8 worker daemon is already running.
+) else (
+    echo [*] Launching Camunda 8 Service Worker (auto_daemon.py)...
+    cd /d "%STERILFLOW_DIR%"
+    start "STERILFLOW Worker (Interconnect)" cmd /k "python auto_daemon.py"
+    echo [OK] Worker daemon launched.
+    timeout /t 2 /nobreak >nul
+)
+
+:: 5. Check & Start Vite React Frontend (Port 5173)
 echo.
 echo [*] Checking Vite React Frontend (Port 5173)...
 netstat -ano | findstr ":5173" | findstr "LISTENING" >nul 2>nul
@@ -70,20 +84,20 @@ if %ERRORLEVEL% equ 0 (
     timeout /t 2 /nobreak >nul
 )
 
-:: 5. Open Web Browser
+:: 6. Open Web Browser
 echo.
 echo [*] Opening STERILFLOW Portal in default browser...
 start http://localhost:5173/
 
 echo.
 echo =====================================================================
-echo                       SYSTEM STATUS: ONLINE
+echo                 ENTIRE SYSTEM ONLINE AND INTERCONNECTED
 echo =====================================================================
 echo  - Web Application:       http://localhost:5173/
 echo  - Camunda 8 Operate:     http://localhost:8080/operate
 echo  - Camunda 8 Tasklist:    http://localhost:8080/tasklist
 echo  - Spring Boot API:       http://localhost:8085/api/
-echo  - H2 Database Console:   http://localhost:8085/h2-console
+echo  - Camunda 8 Worker:      auto_daemon.py (Active & Syncing)
 echo =====================================================================
 echo.
 echo Press any key to exit this launcher window (services will remain running)...
