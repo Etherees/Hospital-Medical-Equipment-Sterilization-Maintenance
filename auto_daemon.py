@@ -6,23 +6,26 @@ import sys
 
 CAMUNDA_BASE = "http://localhost:8080"
 
-# Note: Human approval tasks ("io.camunda.zeebe:userTask") are deliberately excluded
-# so that Camunda 8 halts and WAITS for actual technician sign-offs on http://localhost:5173/tasks.
+# Note: Human approval user tasks ("Task_InitialInspection", "Task_CleaningRework",
+# "Task_QualityInspection", "Task_FinalQualitySignoff") are intentionally excluded
+# from this list so that Camunda 8 halts and WAITS for actual technician/QA approvals on http://localhost:5173/tasks.
 JOB_TYPES = [
     "register-equipment",
     "verify-cleaning",
-    "quality-inspection",
     "execute-sterilization-cycle",
     "verify-chemical-indicator",
+    "assign-biomedical-engineer",
+    "equipment-assessment",
+    "execute-sensor-calibration",
+    "calibration-verification",
+    "issue-calibration-cert",
+    "update-calibration-expiry",
     "update-equipment-status",
     "generate-sterilization-certificate",
     "send-notification",
     "io.camunda:email:1",
     "io.camunda:http-json:1",
     "log-calibration-ticket",
-    "execute-sensor-calibration",
-    "issue-calibration-cert",
-    "update-calibration-expiry",
     "quarantine-initiation",
     "record-failure",
     "reautoclave-processing",
@@ -70,9 +73,12 @@ def run_daemon():
     print("==================================================================", flush=True)
     print("   STERILFLOW 2.0 - CAMUNDA 8 AUTOMATED SERVICE TASK WORKER", flush=True)
     print("==================================================================", flush=True)
-    print("[*] Service tasks: Automated execution (Autoclave, Chemical Check, Wash, Certs)", flush=True)
-    print("[*] Human tasks:   WAITING for Technician approval on http://localhost:5173/tasks", flush=True)
-    print("[*] Failure path:  Supports Cleaning Rework loop and Maintenance Quarantine", flush=True)
+    print("[*] Service tasks: Automated execution (Autoclave, Chemical Check, Wash, Calibration, Certs)", flush=True)
+    print("[*] Human tasks:   WAITING for Technician/QA approvals on http://localhost:5173/tasks", flush=True)
+    print("[*]   - Step 2: Initial Inspection (Pass -> Washer, Fail -> Enzymatic Rework)", flush=True)
+    print("[*]   - Step 3: Cleaning Rework (Technician loopback to Initial Inspection)", flush=True)
+    print("[*]   - Step 7: Quality Inspection (QA Specialist Tray & Seal Verification)", flush=True)
+    print("[*]   - Step 9: Final Quality Sign-Off (QA Manager Release vs Quarantine)", flush=True)
     print("==================================================================", flush=True)
     
     step_count = 0
@@ -110,7 +116,6 @@ def run_daemon():
                             unpacked.update(inner)
 
                     # 2. Extract user choices with strict evaluation of failure states
-                    # Check both raw_vars and unpacked for initial inspection outcome
                     raw_clean = raw_vars.get("cleaningPassed", None)
                     raw_initial = raw_vars.get("initialInspectionPassed", None)
                     raw_final = raw_vars.get("finalApprovalPassed", None)
@@ -173,11 +178,6 @@ def run_daemon():
                     if elem == "Task_VerifyCleaning":
                         vars_to_send["cleaningPassed"] = cleaning_passed
                         vars_to_send["initialInspectionPassed"] = cleaning_passed
-
-                    if elem == "Task_QualityInspection":
-                        vars_to_send["currentTray"] = {
-                            "calibrationRequired": calib_required
-                        }
 
                     if elem == "Task_FlagCorrectiveMaintenance":
                         vars_to_send["equipmentStatus"] = "QUARANTINED"

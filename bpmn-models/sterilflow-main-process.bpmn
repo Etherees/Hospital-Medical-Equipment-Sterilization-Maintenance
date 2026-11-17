@@ -137,14 +137,15 @@
         <bpmn:incoming>Flow_ThermalAbort</bpmn:incoming>
         <bpmn:outgoing>Flow_QuarantineResolved</bpmn:outgoing>
       </bpmn:callActivity>
-      <bpmn:serviceTask id="Task_QualityInspection" name="Quality Inspection &#38; Seal Verification">
+      <bpmn:userTask id="Task_QualityInspection" name="Quality Inspection &#38; Seal Verification">
         <bpmn:extensionElements>
-          <zeebe:taskDefinition type="quality-inspection" retries="3" />
+          <zeebe:assignmentDefinition candidateGroups="qa-specialist" />
+          <zeebe:formDefinition formKey="camunda-forms:bpmn:quality-signoff-form" />
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_IndicatorPassedYes</bpmn:incoming>
         <bpmn:incoming>Flow_QuarantineResolved</bpmn:incoming>
         <bpmn:outgoing>Flow_Sub_05</bpmn:outgoing>
-      </bpmn:serviceTask>
+      </bpmn:userTask>
       <bpmn:exclusiveGateway id="Gateway_CalibrationRequired" name="Calibration Required?" default="Flow_CalibrationNo">
         <bpmn:incoming>Flow_Sub_05</bpmn:incoming>
         <bpmn:outgoing>Flow_CalibrationYes</bpmn:outgoing>

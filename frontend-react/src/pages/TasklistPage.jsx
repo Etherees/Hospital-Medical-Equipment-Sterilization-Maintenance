@@ -418,8 +418,76 @@ export default function TasklistPage() {
                   </div>
                 )}
 
+                {selectedTask.taskName.includes('Quality Inspection') && (
+                  <div className="space-y-4 text-xs font-mono">
+                    <p className="text-steril-muted leading-relaxed">
+                      Surgical Tray Quality Inspection & Sterile Barrier Seal Verification following 134°C Autoclave sterilization cycle.
+                    </p>
+
+                    <div className="space-y-2 p-3 rounded-xl bg-steril-surface border border-steril-border">
+                      <label className="flex items-center space-x-2.5 text-steril-text cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.visualPassed ?? true}
+                          onChange={(e) => setFormData({ ...formData, visualPassed: e.target.checked })}
+                          className="rounded bg-steril-black border-steril-border text-steril-green focus:ring-0"
+                        />
+                        <span>Chamber Thermal Parameters Verified (134.4°C held, 2.23 bar verified)</span>
+                      </label>
+                      <label className="flex items-center space-x-2.5 text-steril-text cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.sealPassed ?? true}
+                          onChange={(e) => setFormData({ ...formData, sealPassed: e.target.checked })}
+                          className="rounded bg-steril-black border-steril-border text-steril-green focus:ring-0"
+                        />
+                        <span>Sterile Wrap Packaging & Double Heat-Seal Integrity Intact</span>
+                      </label>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-steril-muted">Quality Outcome *</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, qualityPassed: 'true', approved: 'true' })}
+                          className={`p-2.5 rounded-lg border text-left transition-all ${
+                            formData.qualityPassed !== 'false' && formData.approved !== 'false'
+                              ? 'bg-steril-green/20 border-steril-green text-steril-green font-bold'
+                              : 'bg-steril-surface border-steril-border text-steril-muted'
+                          }`}
+                        >
+                          ✓ Passed & Certified
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, qualityPassed: 'false', approved: 'false' })}
+                          className={`p-2.5 rounded-lg border text-left transition-all ${
+                            formData.qualityPassed === 'false' || formData.approved === 'false'
+                              ? 'bg-steril-red/20 border-steril-red text-steril-red font-bold'
+                              : 'bg-steril-surface border-steril-border text-steril-muted'
+                          }`}
+                        >
+                          ✗ Failed (Defective Seal)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-steril-muted">QA Specialist Verification Notes</label>
+                      <textarea
+                        rows={2}
+                        value={formData.notes || ''}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-steril-surface border border-steril-border text-steril-text resize-none"
+                        placeholder="Chamber cycle 134°C verified. Autoclave log signed off."
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Generic / Other Task Form */}
-                {!selectedTask.taskName.includes('Initial Inspection') && !selectedTask.taskName.includes('Final Quality') && (
+                {!selectedTask.taskName.includes('Initial Inspection') && !selectedTask.taskName.includes('Quality Inspection') && !selectedTask.taskName.includes('Final Quality') && (
                   <div className="space-y-3 text-xs font-mono">
                     <div className="p-3 rounded-xl bg-steril-surface border border-steril-border">
                       <span className="text-steril-muted block mb-1">TASK PAYLOAD DATA:</span>

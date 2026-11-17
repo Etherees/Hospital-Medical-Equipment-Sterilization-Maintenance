@@ -235,7 +235,60 @@ public class WorkflowOrchestratorService {
                     .build();
 
             for (int attempt = 0; attempt < 5; attempt++) {
-                // Try Zeebe Job Worker API (io.camunda.zeebe:userTask)
+                // Method 1: Camunda 8 REST API for Native User Tasks (/v2/user-tasks)
+                try {
+                    Map<String, Object> filter = new HashMap<>();
+                    filter.put("state", "CREATED");
+                    filter.put("processInstanceKey", processInstanceId);
+                    if (targetElementId != null && !targetElementId.isEmpty()) {
+                        filter.put("elementId", targetElementId);
+                    }
+
+                    Map<String, Object> searchPayload = new HashMap<>();
+                    searchPayload.put("filter", filter);
+
+                    HttpRequest searchReq = HttpRequest.newBuilder()
+                            .uri(URI.create("http://localhost:8080/v2/user-tasks/search"))
+                            .header("Content-Type", "application/json")
+                            .timeout(Duration.ofSeconds(4))
+                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(searchPayload)))
+                            .build();
+
+                    HttpResponse<String> searchResp = client.send(searchReq, HttpResponse.BodyHandlers.ofString());
+                    if (searchResp.statusCode() == 200) {
+                        JsonNode searchNode = objectMapper.readTree(searchResp.body());
+                        if (searchNode.has("items") && searchNode.get("items").isArray() && searchNode.get("items").size() > 0) {
+                            for (JsonNode taskNode : searchNode.get("items")) {
+                                String userTaskKey = taskNode.has("userTaskKey") ? taskNode.get("userTaskKey").asText() : "";
+                                String elemId = taskNode.has("elementId") ? taskNode.get("elementId").asText() : "";
+
+                                if (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(elemId)) {
+                                    String compUrl = "http://localhost:8080/v2/user-tasks/" + userTaskKey + "/completion";
+                                    Map<String, Object> compBody = new HashMap<>();
+                                    compBody.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
+
+                                    HttpRequest compReq = HttpRequest.newBuilder()
+                                            .uri(URI.create(compUrl))
+                                            .header("Content-Type", "application/json")
+                                            .timeout(Duration.ofSeconds(4))
+                                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compBody)))
+                                            .build();
+
+                                    HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
+                                    if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
+                                        log.info("[Camunda 8 Interconnect] Completed Native User Task {} ({}) for Instance {} with variables: {}",
+                                                userTaskKey, elemId, processInstanceId, camundaVars);
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    log.warn("[Camunda 8 Interconnect] User task REST search attempt failed: {}", ex.getMessage());
+                }
+
+                // Method 2: Zeebe Job Worker API fallback (io.camunda.zeebe:userTask)
                 Map<String, Object> actPayload = new HashMap<>();
                 actPayload.put("type", "io.camunda.zeebe:userTask");
                 actPayload.put("timeout", 5000);
@@ -259,21 +312,24 @@ public class WorkflowOrchestratorService {
                             String elem = job.has("elementId") ? job.get("elementId").asText() : "";
 
                             if (processInstanceId.equals(pKey)) {
-                                String compUrl = "http://localhost:8080/v2/jobs/" + jKey + "/completion";
-                                Map<String, Object> compPayload = new HashMap<>();
-                                compPayload.put("variables", camundaVars);
+                                if (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(elem)) {
+                                    String compUrl = "http://localhost:8080/v2/jobs/" + jKey + "/completion";
+                                    Map<String, Object> compPayload = new HashMap<>();
+                                    compPayload.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
 
-                                HttpRequest compReq = HttpRequest.newBuilder()
-                                        .uri(URI.create(compUrl))
-                                        .header("Content-Type", "application/json")
-                                        .timeout(Duration.ofSeconds(4))
-                                        .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compPayload)))
-                                        .build();
+                                    HttpRequest compReq = HttpRequest.newBuilder()
+                                            .uri(URI.create(compUrl))
+                                            .header("Content-Type", "application/json")
+                                            .timeout(Duration.ofSeconds(4))
+                                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compPayload)))
+                                            .build();
 
-                                HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
-                                if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
-                                    log.info("[Camunda 8 Interconnect] Completed User Task Job {} ({}) for Instance {} with variables: {}", jKey, elem, processInstanceId, camundaVars);
-                                    return true;
+                                    HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
+                                    if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
+                                        log.info("[Camunda 8 Interconnect] Completed User Task Job {} ({}) for Instance {} with variables: {}",
+                                                jKey, elem, processInstanceId, camundaVars);
+                                        return true;
+                                    }
                                 }
                             }
                         }
@@ -320,7 +376,7 @@ public class WorkflowOrchestratorService {
         if (reqOpt.isEmpty()) return;
         SterilizationRequest req = reqOpt.get();
 
-        if ("Initial Inspection".equalsIgnoreCase(taskName)) {
+        if ("Initial Inspection".equalsIgnoreCase(taskName) || taskName.contains("Initial Inspection")) {
             boolean inspectionPassed = true;
             if (variables != null) {
                 Object val = variables.get("initialInspectionPassed");
@@ -388,29 +444,63 @@ public class WorkflowOrchestratorService {
             camundaVars.put("cleaningPassed", true);
             camundaVars.put("initialInspectionPassed", true);
             completeCamundaUserTask(processInstanceId, "Task_CleaningRework", camundaVars);
-        } else if ("Quality Inspection".equalsIgnoreCase(taskName)) {
+        } else if ("Quality Inspection".equalsIgnoreCase(taskName) || taskName.contains("Quality Inspection")) {
             boolean qualPassed = variables == null || !"false".equals(String.valueOf(variables.get("approved")));
             req.setChemicalIndicatorPassed(qualPassed);
-            req.setCurrentStage("FINAL_APPROVAL");
-            requestRepository.save(req);
 
-            Map<String, Object> signoffPayload = new HashMap<>();
-            signoffPayload.put("requestId", req.getRequestId());
-            signoffPayload.put("department", req.getDepartment());
-            signoffPayload.put("traysProcessed", req.getTrayCount());
+            Map<String, Object> camundaVars = new HashMap<>();
+            camundaVars.put("qualityPassed", qualPassed);
+            camundaVars.put("chemicalIndicatorPassed", qualPassed);
 
-            createWorkflowTask(
-                "Final Quality Sign-Off",
-                processInstanceId,
-                req.getRequestId(),
-                null,
-                null,
-                "qa-manager",
-                req.getPriority(),
-                "camunda-forms:bpmn:quality-signoff-form",
-                signoffPayload
-            );
-        } else if ("Final Quality Sign-Off".equalsIgnoreCase(taskName)) {
+            if (qualPassed) {
+                boolean calibReq = trayRepository.findAll().stream()
+                        .anyMatch(t -> Boolean.TRUE.equals(t.getCalibrationRequired()));
+                req.setCurrentStage(calibReq ? "CALIBRATION" : "FINAL_APPROVAL");
+                requestRepository.save(req);
+
+                // Complete Camunda User Task
+                completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
+
+                Map<String, Object> signoffPayload = new HashMap<>();
+                signoffPayload.put("requestId", req.getRequestId());
+                signoffPayload.put("department", req.getDepartment());
+                signoffPayload.put("traysProcessed", req.getTrayCount());
+
+                createWorkflowTask(
+                    "Final Quality Sign-Off",
+                    processInstanceId,
+                    req.getRequestId(),
+                    null,
+                    null,
+                    "qa-manager",
+                    req.getPriority(),
+                    "camunda-forms:bpmn:quality-signoff-form",
+                    signoffPayload
+                );
+            } else {
+                req.setCurrentStage("QUARANTINED");
+                req.setStatus("QUARANTINED");
+                requestRepository.save(req);
+
+                completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
+
+                Map<String, Object> rejectPayload = new HashMap<>();
+                rejectPayload.put("requestId", req.getRequestId());
+                rejectPayload.put("reason", "Seal integrity failure or defective sterile barrier detected during Quality Inspection");
+
+                createWorkflowTask(
+                    "Final Quality Sign-Off",
+                    processInstanceId,
+                    req.getRequestId(),
+                    null,
+                    null,
+                    "qa-manager",
+                    "CRITICAL",
+                    "camunda-forms:bpmn:quality-signoff-form",
+                    rejectPayload
+                );
+            }
+        } else if ("Final Quality Sign-Off".equalsIgnoreCase(taskName) || taskName.contains("Final Quality")) {
             boolean finalApproved = true;
             if (variables != null) {
                 Object val = variables.get("finalApprovalPassed");

@@ -60,6 +60,9 @@ public class SterilizationWorkflowController {
         String status = body.get("status") != null ? String.valueOf(body.get("status")) : "IN_PROGRESS";
 
         Optional<SterilizationRequest> reqOpt = requestRepository.findByProcessInstanceId(processInstanceId);
+        if (reqOpt.isEmpty() && body.get("requestId") != null) {
+            reqOpt = requestRepository.findByRequestId(String.valueOf(body.get("requestId")));
+        }
         SterilizationRequest req;
         if (reqOpt.isPresent()) {
             req = reqOpt.get();
@@ -101,13 +104,20 @@ public class SterilizationWorkflowController {
         } else if ("Task_ExecuteSterilizationCycle".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("AUTOCLAVE_PROCESSING");
         } else if ("Task_VerifyChemicalIndicator".equalsIgnoreCase(elementId)) {
-            req.setCurrentStage("CHEMICAL_INDICATOR_CHECK");
+            req.setCurrentStage("QUALITY_INSPECTION");
+            ensureWorkflowTask(req, "Quality Inspection & Seal Verification", "qa-specialist", "camunda-forms:bpmn:quality-signoff-form");
         } else if ("Task_QualityInspection".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("FINAL_APPROVAL");
             ensureWorkflowTask(req, "Final Quality Sign-Off", "qa-manager", "camunda-forms:bpmn:quality-signoff-form");
-        } else if ("CallActivity_BiomedicalCalibration".equalsIgnoreCase(elementId)) {
+        } else if ("CallActivity_BiomedicalCalibration".equalsIgnoreCase(elementId) 
+                || elementId.startsWith("Task_Calibration") 
+                || elementId.startsWith("Task_AssignEngineer") 
+                || elementId.startsWith("Task_EquipmentAssessment") 
+                || elementId.startsWith("Task_ExecuteSensor") 
+                || elementId.startsWith("Task_IssueCalibration") 
+                || elementId.startsWith("Task_LogCalibration")) {
             req.setCurrentStage("CALIBRATION");
-        } else if ("Task_FinalQualitySignoff".equalsIgnoreCase(elementId)) {
+        } else if ("Task_UpdateCalibrationExpiry".equalsIgnoreCase(elementId) || "Task_FinalQualitySignoff".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("FINAL_APPROVAL");
             ensureWorkflowTask(req, "Final Quality Sign-Off", "qa-manager", "camunda-forms:bpmn:quality-signoff-form");
         } else if ("Task_FlagCorrectiveMaintenance".equalsIgnoreCase(elementId) || "EndEvent_QuarantinedForMaintenance".equalsIgnoreCase(elementId)) {
@@ -185,8 +195,13 @@ public class SterilizationWorkflowController {
                     JsonNode node = objectMapper.readTree(resp.body());
                     String state = node.has("state") ? node.get("state").asText() : "";
                     if ("COMPLETED".equalsIgnoreCase(state)) {
-                        req.setStatus("COMPLETED");
-                        req.setCurrentStage("RELEASED");
+                        if (Boolean.FALSE.equals(req.getFinalApprovalPassed()) || "QUARANTINED".equalsIgnoreCase(req.getStatus()) || "QUARANTINED".equalsIgnoreCase(req.getCurrentStage())) {
+                            req.setStatus("QUARANTINED");
+                            req.setCurrentStage("QUARANTINED");
+                        } else {
+                            req.setStatus("COMPLETED");
+                            req.setCurrentStage("RELEASED");
+                        }
                         req.setCompletedAt(LocalDateTime.now());
                         requestRepository.save(req);
                     }

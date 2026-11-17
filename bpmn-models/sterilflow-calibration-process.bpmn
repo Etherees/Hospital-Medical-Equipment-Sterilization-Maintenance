@@ -11,21 +11,20 @@
       <bpmn:incoming>Flow_C01</bpmn:incoming>
       <bpmn:outgoing>Flow_C02</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:userTask id="Task_AssignEngineer" name="Assign Biomedical Engineer">
+    <bpmn:serviceTask id="Task_AssignEngineer" name="Assign Biomedical Engineer">
       <bpmn:extensionElements>
-        <zeebe:assignmentDefinition candidateGroups="biomedical-engineering" />
-        <zeebe:formDefinition formKey="camunda-forms:bpmn:calibration-form" />
+        <zeebe:taskDefinition type="assign-biomedical-engineer" retries="3" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_C02</bpmn:incoming>
       <bpmn:outgoing>Flow_C03</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:userTask id="Task_EquipmentAssessment" name="Equipment Assessment &#38; Visual Check">
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_EquipmentAssessment" name="Equipment Assessment &#38; Visual Check">
       <bpmn:extensionElements>
-        <zeebe:assignmentDefinition candidateGroups="biomedical-engineering" />
+        <zeebe:taskDefinition type="equipment-assessment" retries="3" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_C03</bpmn:incoming>
       <bpmn:outgoing>Flow_C04</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_ExecuteSensorCalibration" name="Execute Precision Sensor &#38; Pressure Calibration">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="execute-sensor-calibration" retries="2" />
@@ -33,13 +32,13 @@
       <bpmn:incoming>Flow_C04</bpmn:incoming>
       <bpmn:outgoing>Flow_C05</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:userTask id="Task_CalibrationVerification" name="Calibration Verification &#38; Tolerance Sign-Off">
+    <bpmn:serviceTask id="Task_CalibrationVerification" name="Calibration Verification &#38; Tolerance Sign-Off">
       <bpmn:extensionElements>
-        <zeebe:assignmentDefinition candidateGroups="biomedical-lead" />
+        <zeebe:taskDefinition type="calibration-verification" retries="3" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_C05</bpmn:incoming>
       <bpmn:outgoing>Flow_C06</bpmn:outgoing>
-    </bpmn:userTask>
+    </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="Gateway_TolerancePassed" name="Within ISO Tolerances?" default="Flow_TolerancePassedYes">
       <bpmn:incoming>Flow_C06</bpmn:incoming>
       <bpmn:outgoing>Flow_TolerancePassedYes</bpmn:outgoing>
