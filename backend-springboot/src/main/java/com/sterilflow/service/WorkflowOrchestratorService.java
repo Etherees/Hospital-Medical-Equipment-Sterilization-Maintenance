@@ -425,7 +425,9 @@ public class WorkflowOrchestratorService {
             boolean inspectionPassed = true;
             if (variables != null) {
                 Object val = variables.get("initialInspectionPassed");
-                if ("false".equalsIgnoreCase(String.valueOf(val)) || Boolean.FALSE.equals(val)) {
+                Object app = variables.get("approved");
+                if ("false".equalsIgnoreCase(String.valueOf(val)) || Boolean.FALSE.equals(val)
+                        || "false".equalsIgnoreCase(String.valueOf(app)) || Boolean.FALSE.equals(app)) {
                     inspectionPassed = false;
                 }
             }
@@ -458,12 +460,9 @@ public class WorkflowOrchestratorService {
                     reInspectPayload
                 );
 
-                completeCamundaUserTask(processInstanceId, "Task_InitialInspection", camundaVars);
-
-                // In Camunda, token moves to Task_VerifyCleaning -> Gateway_CleaningPassed (failed) -> Task_CleaningRework.
-                // Complete Task_CleaningRework so token loops back via Flow_ReworkLoop to Task_InitialInspection.
                 java.util.concurrent.CompletableFuture.runAsync(() -> {
                     try {
+                        completeCamundaUserTask(processInstanceId, "Task_InitialInspection", camundaVars);
                         Thread.sleep(1200);
                         Map<String, Object> reworkVars = new HashMap<>();
                         reworkVars.put("cleaningPassed", true);
@@ -478,7 +477,14 @@ public class WorkflowOrchestratorService {
                 // HAPPY PATH: Cleaning Passed -> Verify Cleaning & Autoclave
                 req.setCurrentStage("CLEANING_VERIFICATION");
                 requestRepository.save(req);
-                completeCamundaUserTask(processInstanceId, "Task_InitialInspection", camundaVars);
+
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        completeCamundaUserTask(processInstanceId, "Task_InitialInspection", camundaVars);
+                    } catch (Exception e) {
+                        log.warn("[Camunda 8 Interconnect] Task_InitialInspection completion: {}", e.getMessage());
+                    }
+                });
             }
         } else if ("Cleaning Rework & Ultrasonic Wash".equalsIgnoreCase(taskName) || taskName.contains("Rework")) {
             // Completed rework -> reset to initial inspection
@@ -505,9 +511,24 @@ public class WorkflowOrchestratorService {
             Map<String, Object> camundaVars = new HashMap<>();
             camundaVars.put("cleaningPassed", true);
             camundaVars.put("initialInspectionPassed", true);
-            completeCamundaUserTask(processInstanceId, "Task_CleaningRework", camundaVars);
+
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    completeCamundaUserTask(processInstanceId, "Task_CleaningRework", camundaVars);
+                } catch (Exception e) {
+                    log.warn("[Camunda 8 Interconnect] Task_CleaningRework completion: {}", e.getMessage());
+                }
+            });
         } else if ("Quality Inspection".equalsIgnoreCase(taskName) || taskName.contains("Quality Inspection")) {
-            boolean qualPassed = variables == null || !"false".equals(String.valueOf(variables.get("approved")));
+            boolean qualPassed = true;
+            if (variables != null) {
+                Object qp = variables.get("qualityPassed");
+                Object ap = variables.get("approved");
+                if ("false".equalsIgnoreCase(String.valueOf(qp)) || Boolean.FALSE.equals(qp)
+                        || "false".equalsIgnoreCase(String.valueOf(ap)) || Boolean.FALSE.equals(ap)) {
+                    qualPassed = false;
+                }
+            }
             req.setChemicalIndicatorPassed(qualPassed);
 
             Map<String, Object> camundaVars = new HashMap<>();
@@ -520,8 +541,14 @@ public class WorkflowOrchestratorService {
                 req.setCurrentStage(calibReq ? "CALIBRATION" : "FINAL_APPROVAL");
                 requestRepository.save(req);
 
-                // Complete Camunda User Task
-                completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
+                // Complete Camunda User Task asynchronously
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
+                    } catch (Exception e) {
+                        log.warn("[Camunda 8 Interconnect] Task_QualityInspection completion: {}", e.getMessage());
+                    }
+                });
 
                 Map<String, Object> signoffPayload = new HashMap<>();
                 signoffPayload.put("requestId", req.getRequestId());
@@ -546,13 +573,21 @@ public class WorkflowOrchestratorService {
                 req.setCompletedAt(LocalDateTime.now());
                 requestRepository.save(req);
 
-                completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
+                    } catch (Exception e) {
+                        log.warn("[Camunda 8 Interconnect] Task_QualityInspection reject completion: {}", e.getMessage());
+                    }
+                });
             }
         } else if ("Final Quality Sign-Off".equalsIgnoreCase(taskName) || taskName.contains("Final Quality")) {
             boolean finalApproved = true;
             if (variables != null) {
                 Object val = variables.get("finalApprovalPassed");
-                if ("false".equalsIgnoreCase(String.valueOf(val)) || Boolean.FALSE.equals(val)) {
+                Object ap = variables.get("approved");
+                if ("false".equalsIgnoreCase(String.valueOf(val)) || Boolean.FALSE.equals(val)
+                        || "false".equalsIgnoreCase(String.valueOf(ap)) || Boolean.FALSE.equals(ap)) {
                     finalApproved = false;
                 }
             }
@@ -567,7 +602,13 @@ public class WorkflowOrchestratorService {
                 req.setCompletedAt(LocalDateTime.now());
                 requestRepository.save(req);
 
-                completeCamundaUserTask(processInstanceId, "Task_FinalQualitySignoff", camundaVars);
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        completeCamundaUserTask(processInstanceId, "Task_FinalQualitySignoff", camundaVars);
+                    } catch (Exception e) {
+                        log.warn("[Camunda 8 Interconnect] Task_FinalQualitySignoff completion: {}", e.getMessage());
+                    }
+                });
 
                 // Update Equipment & Tray status
                 workers.handleUpdateEquipmentStatus(req.getEquipmentId(), req.getRequestId());

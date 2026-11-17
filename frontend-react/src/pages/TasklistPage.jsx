@@ -13,6 +13,7 @@ export default function TasklistPage() {
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
   // Form State for completing task
   const [formData, setFormData] = useState({});
@@ -101,15 +102,40 @@ export default function TasklistPage() {
     }
   };
 
+  const isRejectAction = () => {
+    if (!selectedTask) return false;
+    if (selectedTask.taskName.includes('Initial Inspection')) {
+      return formData.initialInspectionPassed === 'false';
+    }
+    if (selectedTask.taskName.includes('Quality Inspection')) {
+      return formData.qualityPassed === 'false' || formData.approved === 'false';
+    }
+    if (selectedTask.taskName.includes('Final Quality')) {
+      return formData.finalApprovalPassed === 'false';
+    }
+    return false;
+  };
+
   const handleCompleteTask = async () => {
     if (!selectedTask) return;
     setCompleting(true);
+    setFeedback(null);
     try {
       await sterilApi.completeTask(selectedTask.taskId, 'cssd_technician_01', formData);
+      const isRej = isRejectAction();
+      setFeedback({
+        type: isRej ? 'warning' : 'success',
+        message: `Task ${selectedTask.taskId} successfully ${isRej ? 'REJECTED' : 'APPROVED'}! Process advanced in engine.`,
+      });
       await fetchTasks();
       setSelectedTask(null);
+      setTimeout(() => setFeedback(null), 5000);
     } catch (err) {
       console.error('Failed to complete task', err);
+      setFeedback({
+        type: 'error',
+        message: `Failed to submit task: ${err.response?.data?.message || err.message}`,
+      });
     } finally {
       setCompleting(false);
     }
@@ -254,6 +280,23 @@ export default function TasklistPage() {
 
         {/* Right Task Execution & Form Drawer */}
         <div className="lg:col-span-7 p-6 rounded-2xl bg-steril-charcoal border border-steril-border flex flex-col justify-between">
+          {feedback && (
+            <div className={`mb-4 p-3 rounded-xl border text-xs font-mono flex items-center space-x-2.5 transition-all ${
+              feedback.type === 'error'
+                ? 'bg-steril-red/20 border-steril-red text-steril-red shadow-glow-red'
+                : feedback.type === 'warning'
+                ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                : 'bg-steril-green/20 border-steril-green text-steril-green shadow-glow-green-sm'
+            }`}>
+              {feedback.type === 'error' ? (
+                <XCircle className="w-4 h-4 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              )}
+              <span>{feedback.message}</span>
+            </div>
+          )}
+
           {selectedTask ? (
             <div className="space-y-5">
               {/* Task Header */}
@@ -513,24 +556,38 @@ export default function TasklistPage() {
               {/* Complete Task Submit Button */}
               {selectedTask.status !== 'COMPLETED' && (
                 <div className="pt-4 border-t border-steril-border/60">
-                  <button
-                    type="button"
-                    disabled={completing}
-                    onClick={handleCompleteTask}
-                    className="w-full py-3 rounded-xl bg-steril-green text-steril-black font-bold text-sm hover:bg-steril-mint transition-all shadow-glow-green flex items-center justify-center space-x-2 disabled:opacity-50"
-                  >
-                    {completing ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>SUBMITTING USER TASK ACTION...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckSquare className="w-4 h-4" />
-                        <span>Complete Task & Advance Workflow Engine</span>
-                      </>
-                    )}
-                  </button>
+                  {(() => {
+                    const isRej = isRejectAction();
+                    return (
+                      <button
+                        type="button"
+                        disabled={completing}
+                        onClick={handleCompleteTask}
+                        className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-50 ${
+                          isRej
+                            ? 'bg-steril-red text-white hover:bg-rose-600 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
+                            : 'bg-steril-green text-steril-black hover:bg-steril-mint shadow-glow-green'
+                        }`}
+                      >
+                        {completing ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>PROCESSING WORKFLOW ENGINE DECISION...</span>
+                          </>
+                        ) : isRej ? (
+                          <>
+                            <XCircle className="w-4 h-4" />
+                            <span>CONFIRM REJECTION & TRIGGER EXCEPTION ROUTE</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckSquare className="w-4 h-4" />
+                            <span>CONFIRM APPROVAL & ADVANCE WORKFLOW</span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
             </div>
