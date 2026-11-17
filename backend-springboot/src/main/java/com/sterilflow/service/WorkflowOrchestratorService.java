@@ -234,108 +234,153 @@ public class WorkflowOrchestratorService {
                     .connectTimeout(Duration.ofSeconds(4))
                     .build();
 
-            for (int attempt = 0; attempt < 5; attempt++) {
-                // Method 1: Camunda 8 REST API for Native User Tasks (/v2/user-tasks)
+            for (int attempt = 0; attempt < 25; attempt++) {
                 try {
-                    Map<String, Object> filter = new HashMap<>();
-                    filter.put("state", "CREATED");
-                    filter.put("processInstanceKey", processInstanceId);
-                    if (targetElementId != null && !targetElementId.isEmpty()) {
-                        filter.put("elementId", targetElementId);
-                    }
+                    // Method 1: Camunda 8 REST API for Native User Tasks (/v2/user-tasks)
+                    try {
+                        Map<String, Object> filter = new HashMap<>();
+                        filter.put("state", "CREATED");
+                        filter.put("processInstanceKey", processInstanceId);
+                        if (targetElementId != null && !targetElementId.isEmpty()) {
+                            filter.put("elementId", targetElementId);
+                        }
 
-                    Map<String, Object> searchPayload = new HashMap<>();
-                    searchPayload.put("filter", filter);
+                        Map<String, Object> searchPayload = new HashMap<>();
+                        searchPayload.put("filter", filter);
 
-                    HttpRequest searchReq = HttpRequest.newBuilder()
-                            .uri(URI.create("http://localhost:8080/v2/user-tasks/search"))
-                            .header("Content-Type", "application/json")
-                            .timeout(Duration.ofSeconds(4))
-                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(searchPayload)))
-                            .build();
+                        HttpRequest searchReq = HttpRequest.newBuilder()
+                                .uri(URI.create("http://localhost:8080/v2/user-tasks/search"))
+                                .header("Content-Type", "application/json")
+                                .timeout(Duration.ofSeconds(6))
+                                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(searchPayload)))
+                                .build();
 
-                    HttpResponse<String> searchResp = client.send(searchReq, HttpResponse.BodyHandlers.ofString());
-                    if (searchResp.statusCode() == 200) {
-                        JsonNode searchNode = objectMapper.readTree(searchResp.body());
-                        if (searchNode.has("items") && searchNode.get("items").isArray() && searchNode.get("items").size() > 0) {
-                            for (JsonNode taskNode : searchNode.get("items")) {
-                                String userTaskKey = taskNode.has("userTaskKey") ? taskNode.get("userTaskKey").asText() : "";
-                                String elemId = taskNode.has("elementId") ? taskNode.get("elementId").asText() : "";
+                        HttpResponse<String> searchResp = client.send(searchReq, HttpResponse.BodyHandlers.ofString());
+                        if (searchResp.statusCode() == 200) {
+                            JsonNode searchNode = objectMapper.readTree(searchResp.body());
+                            if (searchNode.has("items") && searchNode.get("items").isArray() && searchNode.get("items").size() > 0) {
+                                int completedCount = 0;
+                                for (JsonNode taskNode : searchNode.get("items")) {
+                                    String userTaskKey = taskNode.has("userTaskKey") ? taskNode.get("userTaskKey").asText() : "";
+                                    String elemId = taskNode.has("elementId") ? taskNode.get("elementId").asText() : "";
 
-                                if (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(elemId)) {
-                                    String compUrl = "http://localhost:8080/v2/user-tasks/" + userTaskKey + "/completion";
-                                    Map<String, Object> compBody = new HashMap<>();
-                                    compBody.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
+                                    if (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(elemId)) {
+                                        String compUrl = "http://localhost:8080/v2/user-tasks/" + userTaskKey + "/completion";
+                                        Map<String, Object> compBody = new HashMap<>();
+                                        compBody.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
 
-                                    HttpRequest compReq = HttpRequest.newBuilder()
-                                            .uri(URI.create(compUrl))
-                                            .header("Content-Type", "application/json")
-                                            .timeout(Duration.ofSeconds(4))
-                                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compBody)))
-                                            .build();
+                                        HttpRequest compReq = HttpRequest.newBuilder()
+                                                .uri(URI.create(compUrl))
+                                                .header("Content-Type", "application/json")
+                                                .timeout(Duration.ofSeconds(6))
+                                                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compBody)))
+                                                .build();
 
-                                    HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
-                                    if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
-                                        log.info("[Camunda 8 Interconnect] Completed Native User Task {} ({}) for Instance {} with variables: {}",
-                                                userTaskKey, elemId, processInstanceId, camundaVars);
-                                        return true;
+                                        HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
+                                        if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
+                                            log.info("[Camunda 8 Interconnect] Completed Native User Task {} ({}) for Instance {} with variables: {}",
+                                                    userTaskKey, elemId, processInstanceId, camundaVars);
+                                            completedCount++;
+                                        }
                                     }
                                 }
+                                if (completedCount > 0) {
+                                    log.info("[Camunda 8 Interconnect] Completed {} native user task(s) for element {} in instance {}", completedCount, targetElementId, processInstanceId);
+                                    return true;
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        log.debug("[Camunda 8 Interconnect] User task REST search attempt failed: {}", ex.getMessage());
+                    }
+
+                    // Method 2: Zeebe Job Worker API fallback (io.camunda.zeebe:userTask)
+                    Map<String, Object> actPayload = new HashMap<>();
+                    actPayload.put("type", "io.camunda.zeebe:userTask");
+                    actPayload.put("timeout", 5000);
+                    actPayload.put("maxJobsToActivate", 50);
+                    actPayload.put("requestTimeout", 500);
+                    actPayload.put("worker", "sterilflow-backend-signoff");
+
+                    HttpRequest actReq = HttpRequest.newBuilder()
+                            .uri(URI.create("http://localhost:8080/v2/jobs/activation"))
+                            .header("Content-Type", "application/json")
+                            .timeout(Duration.ofSeconds(10))
+                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(actPayload)))
+                            .build();
+
+                    HttpResponse<String> actResp = client.send(actReq, HttpResponse.BodyHandlers.ofString());
+                    if (actResp.statusCode() == 200) {
+                        JsonNode root = objectMapper.readTree(actResp.body());
+                        if (root.has("jobs") && root.get("jobs").isArray()) {
+                            int completedCount = 0;
+                            for (JsonNode job : root.get("jobs")) {
+                                String pKey = job.has("processInstanceKey") ? job.get("processInstanceKey").asText() : "";
+                                String jKey = job.has("jobKey") ? job.get("jobKey").asText() : "";
+                                String elem = job.has("elementId") ? job.get("elementId").asText() : "";
+
+                                if (processInstanceId.equals(pKey)) {
+                                    if (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(elem)) {
+                                        String compUrl = "http://localhost:8080/v2/jobs/" + jKey + "/completion";
+                                        Map<String, Object> compPayload = new HashMap<>();
+                                        compPayload.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
+
+                                        HttpRequest compReq = HttpRequest.newBuilder()
+                                                .uri(URI.create(compUrl))
+                                                .header("Content-Type", "application/json")
+                                                .timeout(Duration.ofSeconds(6))
+                                                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compPayload)))
+                                                .build();
+
+                                        HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
+                                        if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
+                                            log.info("[Camunda 8 Interconnect] Completed User Task Job {} ({}) for Instance {} with variables: {}",
+                                                    jKey, elem, processInstanceId, camundaVars);
+                                            completedCount++;
+                                        }
+                                    }
+                                }
+                            }
+                            if (completedCount > 0) {
+                                log.info("[Camunda 8 Interconnect] Completed {} user task job(s) for element {} in instance {}", completedCount, targetElementId, processInstanceId);
+                                // Quick drain check for any remaining parallel tray jobs
+                                try {
+                                    Thread.sleep(200);
+                                    HttpResponse<String> drainResp = client.send(actReq, HttpResponse.BodyHandlers.ofString());
+                                    if (drainResp.statusCode() == 200) {
+                                        JsonNode drainRoot = objectMapper.readTree(drainResp.body());
+                                        if (drainRoot.has("jobs") && drainRoot.get("jobs").isArray()) {
+                                            for (JsonNode extraJob : drainRoot.get("jobs")) {
+                                                String extraPKey = extraJob.has("processInstanceKey") ? extraJob.get("processInstanceKey").asText() : "";
+                                                String extraJKey = extraJob.has("jobKey") ? extraJob.get("jobKey").asText() : "";
+                                                String extraElem = extraJob.has("elementId") ? extraJob.get("elementId").asText() : "";
+                                                if (processInstanceId.equals(extraPKey) && (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(extraElem))) {
+                                                    String compUrl = "http://localhost:8080/v2/jobs/" + extraJKey + "/completion";
+                                                    Map<String, Object> compPayload = new HashMap<>();
+                                                    compPayload.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
+                                                    HttpRequest compReq = HttpRequest.newBuilder()
+                                                            .uri(URI.create(compUrl))
+                                                            .header("Content-Type", "application/json")
+                                                            .timeout(Duration.ofSeconds(6))
+                                                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compPayload)))
+                                                            .build();
+                                                    client.send(compReq, HttpResponse.BodyHandlers.ofString());
+                                                    log.info("[Camunda 8 Interconnect] Completed additional parallel tray job {} ({}) for instance {}", extraJKey, extraElem, processInstanceId);
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (Exception ex) {
+                                    log.debug("Drain check completed: {}", ex.getMessage());
+                                }
+                                return true;
                             }
                         }
                     }
                 } catch (Exception ex) {
-                    log.warn("[Camunda 8 Interconnect] User task REST search attempt failed: {}", ex.getMessage());
+                    log.debug("[Camunda 8 Interconnect] Polling attempt {} exception: {}", attempt, ex.getMessage());
                 }
-
-                // Method 2: Zeebe Job Worker API fallback (io.camunda.zeebe:userTask)
-                Map<String, Object> actPayload = new HashMap<>();
-                actPayload.put("type", "io.camunda.zeebe:userTask");
-                actPayload.put("timeout", 5000);
-                actPayload.put("maxJobsToActivate", 25);
-                actPayload.put("worker", "sterilflow-backend-signoff");
-
-                HttpRequest actReq = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/v2/jobs/activation"))
-                        .header("Content-Type", "application/json")
-                        .timeout(Duration.ofSeconds(4))
-                        .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(actPayload)))
-                        .build();
-
-                HttpResponse<String> actResp = client.send(actReq, HttpResponse.BodyHandlers.ofString());
-                if (actResp.statusCode() == 200) {
-                    JsonNode root = objectMapper.readTree(actResp.body());
-                    if (root.has("jobs") && root.get("jobs").isArray()) {
-                        for (JsonNode job : root.get("jobs")) {
-                            String pKey = job.has("processInstanceKey") ? job.get("processInstanceKey").asText() : "";
-                            String jKey = job.has("jobKey") ? job.get("jobKey").asText() : "";
-                            String elem = job.has("elementId") ? job.get("elementId").asText() : "";
-
-                            if (processInstanceId.equals(pKey)) {
-                                if (targetElementId == null || targetElementId.isEmpty() || targetElementId.equalsIgnoreCase(elem)) {
-                                    String compUrl = "http://localhost:8080/v2/jobs/" + jKey + "/completion";
-                                    Map<String, Object> compPayload = new HashMap<>();
-                                    compPayload.put("variables", camundaVars != null ? camundaVars : Collections.emptyMap());
-
-                                    HttpRequest compReq = HttpRequest.newBuilder()
-                                            .uri(URI.create(compUrl))
-                                            .header("Content-Type", "application/json")
-                                            .timeout(Duration.ofSeconds(4))
-                                            .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(compPayload)))
-                                            .build();
-
-                                    HttpResponse<String> compResp = client.send(compReq, HttpResponse.BodyHandlers.ofString());
-                                    if (compResp.statusCode() == 204 || compResp.statusCode() == 200) {
-                                        log.info("[Camunda 8 Interconnect] Completed User Task Job {} ({}) for Instance {} with variables: {}",
-                                                jKey, elem, processInstanceId, camundaVars);
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Thread.sleep(600);
+                Thread.sleep(500);
             }
         } catch (Exception e) {
             log.error("[Camunda 8 Interconnect] Failed to complete user task in Camunda: {}", e.getMessage());
@@ -391,27 +436,44 @@ public class WorkflowOrchestratorService {
             camundaVars.put("cleaningPassed", inspectionPassed);
 
             if (!inspectionPassed) {
-                // FAILURE PATH: Route to Cleaning Rework
-                req.setCurrentStage("CLEANING_REWORK");
+                // Condition 1: "if inspection rejected again it should start"
+                req.setCurrentStage("INITIAL_INSPECTION");
+                req.setStatus("IN_PROGRESS");
+                req.setCleaningPassed(false);
                 requestRepository.save(req);
 
-                Map<String, Object> reworkPayload = new HashMap<>();
-                reworkPayload.put("requestId", req.getRequestId());
-                reworkPayload.put("reason", "Excessive biological burden / bio-film observed during initial inspection");
+                Map<String, Object> reInspectPayload = new HashMap<>();
+                reInspectPayload.put("requestId", req.getRequestId());
+                reInspectPayload.put("note", "Initial inspection rejected (Tagged for rework). Enzymatic rework completed. Re-inspection required.");
 
                 createWorkflowTask(
-                    "Cleaning Rework & Ultrasonic Wash",
+                    "Initial Inspection",
                     processInstanceId,
                     req.getRequestId(),
                     completedTask.getTrayId(),
                     null,
                     "cssd-technician",
                     "HIGH",
-                    "camunda-forms:bpmn:cleaning-rework-form",
-                    reworkPayload
+                    "camunda-forms:bpmn:initial-inspection-form",
+                    reInspectPayload
                 );
 
                 completeCamundaUserTask(processInstanceId, "Task_InitialInspection", camundaVars);
+
+                // In Camunda, token moves to Task_VerifyCleaning -> Gateway_CleaningPassed (failed) -> Task_CleaningRework.
+                // Complete Task_CleaningRework so token loops back via Flow_ReworkLoop to Task_InitialInspection.
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        Thread.sleep(1200);
+                        Map<String, Object> reworkVars = new HashMap<>();
+                        reworkVars.put("cleaningPassed", true);
+                        reworkVars.put("initialInspectionPassed", true);
+                        completeCamundaUserTask(processInstanceId, "Task_CleaningRework", reworkVars);
+                        log.info("[Camunda 8 Interconnect] Rework loop completed; Camunda Instance {} back to Task_InitialInspection", processInstanceId);
+                    } catch (Exception e) {
+                        log.warn("[Camunda 8 Interconnect] Rework loop completion: {}", e.getMessage());
+                    }
+                });
             } else {
                 // HAPPY PATH: Cleaning Passed -> Verify Cleaning & Autoclave
                 req.setCurrentStage("CLEANING_VERIFICATION");
@@ -478,27 +540,13 @@ public class WorkflowOrchestratorService {
                     signoffPayload
                 );
             } else {
-                req.setCurrentStage("QUARANTINED");
-                req.setStatus("QUARANTINED");
+                // Condition 2: "if quality check rejected it should stop there"
+                req.setCurrentStage("QUALITY_INSPECTION");
+                req.setStatus("FAILED");
+                req.setCompletedAt(LocalDateTime.now());
                 requestRepository.save(req);
 
                 completeCamundaUserTask(processInstanceId, "Task_QualityInspection", camundaVars);
-
-                Map<String, Object> rejectPayload = new HashMap<>();
-                rejectPayload.put("requestId", req.getRequestId());
-                rejectPayload.put("reason", "Seal integrity failure or defective sterile barrier detected during Quality Inspection");
-
-                createWorkflowTask(
-                    "Final Quality Sign-Off",
-                    processInstanceId,
-                    req.getRequestId(),
-                    null,
-                    null,
-                    "qa-manager",
-                    "CRITICAL",
-                    "camunda-forms:bpmn:quality-signoff-form",
-                    rejectPayload
-                );
             }
         } else if ("Final Quality Sign-Off".equalsIgnoreCase(taskName) || taskName.contains("Final Quality")) {
             boolean finalApproved = true;

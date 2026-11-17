@@ -161,11 +161,15 @@ export default function WorkflowTrackingPage() {
           {stages.map((stage, idx) => {
             const isCompleted = stage.state === 'COMPLETED';
             const isActive = stage.state === 'ACTIVE';
+            const isFailed = stage.state === 'FAILED';
+            const isQuarantined = stage.state === 'QUARANTINED';
             return (
               <div
                 key={stage.stepNumber}
                 className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 transition-all ${
-                  isActive
+                  isFailed || isQuarantined
+                    ? 'bg-red-950/40 border-red-500/70 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.3)]'
+                    : isActive
                     ? 'bg-steril-surface border-steril-green shadow-glow-green-sm'
                     : isCompleted
                     ? 'bg-steril-charcoal border-steril-green/40 text-steril-text'
@@ -173,10 +177,20 @@ export default function WorkflowTrackingPage() {
                 }`}
               >
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className={`font-bold ${isActive ? 'text-steril-green' : isCompleted ? 'text-steril-mint' : 'text-steril-muted'}`}>
+                  <span className={`font-bold ${
+                    isFailed || isQuarantined
+                      ? 'text-red-400'
+                      : isActive 
+                      ? 'text-steril-green' 
+                      : isCompleted 
+                      ? 'text-steril-mint' 
+                      : 'text-steril-muted'
+                  }`}>
                     STEP 0{stage.stepNumber}
                   </span>
-                  {isCompleted ? (
+                  {isFailed || isQuarantined ? (
+                    <AlertOctagon className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                  ) : isCompleted ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-steril-green" />
                   ) : isActive ? (
                     <span className="w-2 h-2 rounded-full bg-steril-green animate-ping"></span>
@@ -185,11 +199,19 @@ export default function WorkflowTrackingPage() {
                   )}
                 </div>
 
-                <p className={`text-[11px] font-bold leading-tight ${isActive ? 'text-steril-green' : isCompleted ? 'text-steril-text' : 'text-steril-muted'}`}>
+                <p className={`text-[11px] font-bold leading-tight ${
+                  isFailed || isQuarantined
+                    ? 'text-red-300'
+                    : isActive 
+                    ? 'text-steril-green' 
+                    : isCompleted 
+                    ? 'text-steril-text' 
+                    : 'text-steril-muted'
+                }`}>
                   {stage.name}
                 </p>
 
-                <span className="text-[9px] font-mono text-steril-muted uppercase">
+                <span className={`text-[9px] font-mono uppercase ${isFailed || isQuarantined ? 'text-red-400 font-bold' : 'text-steril-muted'}`}>
                   {stage.state}
                 </span>
               </div>

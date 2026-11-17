@@ -195,7 +195,10 @@ public class SterilizationWorkflowController {
                     JsonNode node = objectMapper.readTree(resp.body());
                     String state = node.has("state") ? node.get("state").asText() : "";
                     if ("COMPLETED".equalsIgnoreCase(state)) {
-                        if (Boolean.FALSE.equals(req.getFinalApprovalPassed()) || "QUARANTINED".equalsIgnoreCase(req.getStatus()) || "QUARANTINED".equalsIgnoreCase(req.getCurrentStage())) {
+                        if ("FAILED".equalsIgnoreCase(req.getStatus()) || "QUALITY_INSPECTION".equalsIgnoreCase(req.getCurrentStage())) {
+                            req.setStatus("FAILED");
+                            req.setCurrentStage("QUALITY_INSPECTION");
+                        } else if (Boolean.FALSE.equals(req.getFinalApprovalPassed()) || "QUARANTINED".equalsIgnoreCase(req.getStatus()) || "QUARANTINED".equalsIgnoreCase(req.getCurrentStage())) {
                             req.setStatus("QUARANTINED");
                             req.setCurrentStage("QUARANTINED");
                         } else {
@@ -261,7 +264,13 @@ public class SterilizationWorkflowController {
             if (i < currentStageIdx || "COMPLETED".equals(req.getStatus())) {
                 stage.put("state", "COMPLETED");
             } else if (i == currentStageIdx && !"COMPLETED".equals(req.getStatus())) {
-                stage.put("state", "ACTIVE");
+                if ("FAILED".equalsIgnoreCase(req.getStatus())) {
+                    stage.put("state", "FAILED");
+                } else if ("QUARANTINED".equalsIgnoreCase(req.getStatus())) {
+                    stage.put("state", "QUARANTINED");
+                } else {
+                    stage.put("state", "ACTIVE");
+                }
             } else {
                 stage.put("state", "PENDING");
             }

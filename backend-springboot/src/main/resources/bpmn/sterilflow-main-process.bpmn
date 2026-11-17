@@ -15,6 +15,8 @@
         <bpmn:flowNodeRef>Gateway_CleaningPassed</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_CleaningRework</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>SubProcess_MultiTrayProcessing</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BoundaryEvent_QualityRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcessStoppedAtQuality</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_QA" name="Quality Assurance &#38; Regulatory Release">
         <bpmn:flowNodeRef>Task_FinalQualitySignoff</bpmn:flowNodeRef>
@@ -146,8 +148,17 @@
         <bpmn:incoming>Flow_QuarantineResolved</bpmn:incoming>
         <bpmn:outgoing>Flow_Sub_05</bpmn:outgoing>
       </bpmn:userTask>
-      <bpmn:exclusiveGateway id="Gateway_CalibrationRequired" name="Calibration Required?" default="Flow_CalibrationNo">
+      <bpmn:exclusiveGateway id="Gateway_QualityApproved" name="Quality Approved?" default="Flow_QualityApprovedYes">
         <bpmn:incoming>Flow_Sub_05</bpmn:incoming>
+        <bpmn:outgoing>Flow_QualityApprovedYes</bpmn:outgoing>
+        <bpmn:outgoing>Flow_QualityApprovedNo</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:endEvent id="EndEvent_QualityRejected" name="Quality Check Rejected">
+        <bpmn:incoming>Flow_QualityApprovedNo</bpmn:incoming>
+        <bpmn:errorEventDefinition id="ErrorDef_QualityRejected" errorRef="Error_QualityRejected" />
+      </bpmn:endEvent>
+      <bpmn:exclusiveGateway id="Gateway_CalibrationRequired" name="Calibration Required?" default="Flow_CalibrationNo">
+        <bpmn:incoming>Flow_QualityApprovedYes</bpmn:incoming>
         <bpmn:outgoing>Flow_CalibrationYes</bpmn:outgoing>
         <bpmn:outgoing>Flow_CalibrationNo</bpmn:outgoing>
       </bpmn:exclusiveGateway>
@@ -172,7 +183,11 @@
       </bpmn:sequenceFlow>
       <bpmn:sequenceFlow id="Flow_ThermalAbort" sourceRef="BoundaryEvent_SterilizationError" targetRef="CallActivity_BioContaminationQuarantine" />
       <bpmn:sequenceFlow id="Flow_QuarantineResolved" sourceRef="CallActivity_BioContaminationQuarantine" targetRef="Task_QualityInspection" />
-      <bpmn:sequenceFlow id="Flow_Sub_05" sourceRef="Task_QualityInspection" targetRef="Gateway_CalibrationRequired" />
+      <bpmn:sequenceFlow id="Flow_Sub_05" sourceRef="Task_QualityInspection" targetRef="Gateway_QualityApproved" />
+      <bpmn:sequenceFlow id="Flow_QualityApprovedYes" name="Passed" sourceRef="Gateway_QualityApproved" targetRef="Gateway_CalibrationRequired" />
+      <bpmn:sequenceFlow id="Flow_QualityApprovedNo" name="Failed" sourceRef="Gateway_QualityApproved" targetRef="EndEvent_QualityRejected">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= qualityPassed = false</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
       <bpmn:sequenceFlow id="Flow_CalibrationYes" name="Yes" sourceRef="Gateway_CalibrationRequired" targetRef="CallActivity_BiomedicalCalibration">
         <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= currentTray.calibrationRequired = true</bpmn:conditionExpression>
       </bpmn:sequenceFlow>
@@ -181,6 +196,14 @@
       <bpmn:sequenceFlow id="Flow_TimeoutAlert" sourceRef="BoundaryEvent_SterilizationTimeout" targetRef="Task_AlertTimeout" />
       <bpmn:sequenceFlow id="Flow_TimeoutHandled" sourceRef="Task_AlertTimeout" targetRef="EndEvent_TimeoutHandled" />
     </bpmn:subProcess>
+    <bpmn:boundaryEvent id="BoundaryEvent_QualityRejected" name="Quality Check Rejected" attachedToRef="SubProcess_MultiTrayProcessing">
+      <bpmn:outgoing>Flow_QualityHalt</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_SubQualityRejected" errorRef="Error_QualityRejected" />
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="EndEvent_ProcessStoppedAtQuality" name="Process Stopped (Quality Check Rejected)">
+      <bpmn:incoming>Flow_QualityHalt</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_QualityHalt" sourceRef="BoundaryEvent_QualityRejected" targetRef="EndEvent_ProcessStoppedAtQuality" />
     <bpmn:userTask id="Task_FinalQualitySignoff" name="Final Quality Sign-Off">
       <bpmn:extensionElements>
         <zeebe:assignmentDefinition candidateGroups="qa-manager" />
@@ -267,6 +290,7 @@
     <bpmn:sequenceFlow id="Flow_MaintFlagged" sourceRef="Task_FlagCorrectiveMaintenance" targetRef="EndEvent_QuarantinedForMaintenance" />
   </bpmn:process>
   <bpmn:error id="Error_AutoclaveCycleFailed" name="AutoclaveCycleFailed" errorCode="ERR_AUTOCLAVE_FAILED" />
+  <bpmn:error id="Error_QualityRejected" name="QualityRejected" errorCode="ERR_QUALITY_REJECTED" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_Sterilflow">
     <bpmndi:BPMNPlane id="BPMNPlane_Sterilflow" bpmnElement="Collaboration_Sterilflow">
       <bpmndi:BPMNShape id="Participant_SterilflowSystem_di" bpmnElement="Participant_SterilflowSystem" isHorizontal="true">
@@ -337,6 +361,30 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_QualityInspection_di" bpmnElement="Task_QualityInspection">
         <dc:Bounds x="1370" y="340" width="110" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_QualityApproved_di" bpmnElement="Gateway_QualityApproved" isMarkerVisible="true">
+        <dc:Bounds x="1495" y="355" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1485" y="325" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_QualityRejected_di" bpmnElement="EndEvent_QualityRejected">
+        <dc:Bounds x="1502" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1485" y="485" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_QualityRejected_di" bpmnElement="BoundaryEvent_QualityRejected">
+        <dc:Bounds x="1200" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1178" y="598" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_ProcessStoppedAtQuality_di" bpmnElement="EndEvent_ProcessStoppedAtQuality">
+        <dc:Bounds x="1200" y="722" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1175" y="765" width="86" height="40" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_CalibrationRequired_di" bpmnElement="Gateway_CalibrationRequired" isMarkerVisible="true">
         <dc:Bounds x="1515" y="355" width="50" height="50" />
@@ -414,7 +462,25 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Sub_05_di" bpmnElement="Flow_Sub_05">
         <di:waypoint x="1480" y="380" />
-        <di:waypoint x="1515" y="380" />
+        <di:waypoint x="1495" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_QualityApprovedYes_di" bpmnElement="Flow_QualityApprovedYes">
+        <di:waypoint x="1545" y="380" />
+        <di:waypoint x="1575" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1542" y="362" width="37" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_QualityApprovedNo_di" bpmnElement="Flow_QualityApprovedNo">
+        <di:waypoint x="1520" y="405" />
+        <di:waypoint x="1520" y="442" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1525" y="415" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_QualityHalt_di" bpmnElement="Flow_QualityHalt">
+        <di:waypoint x="1218" y="658" />
+        <di:waypoint x="1218" y="722" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_CalibrationYes_di" bpmnElement="Flow_CalibrationYes">
         <di:waypoint x="1540" y="405" />
