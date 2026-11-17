@@ -24,11 +24,11 @@
         <bpmn:flowNodeRef>Gateway_FinalApproval</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_UpdateEquipmentStatus</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_GenerateSterilizationCert</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Task_SendNotification</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_EquipmentReleased</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_FlagCorrectiveMaintenance</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_QuarantinedForMaintenance</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_ProcessStoppedAtQuality</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SendNotification</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_SterilizationRequested" name="Sterilization Request Logged">
@@ -100,29 +100,17 @@
         <zeebe:taskDefinition type="update-equipment-status" retries="3" />
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_FinalApprovalYes</bpmn:incoming>
-      <bpmn:outgoing>Flow_StatusUpdated</bpmn:outgoing>
+      <bpmn:outgoing>Flow_CertGenerated</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_GenerateSterilizationCert" name="Generate NIST ISO 11134 Certificate">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="generate-sterilization-certificate" retries="3" />
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_StatusUpdated</bpmn:incoming>
-      <bpmn:outgoing>Flow_CertGenerated</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:serviceTask id="Task_SendNotification" name="Alert OR Scheduling Desk (Slack/Teams/Email Connector)">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-notification" />
-        <zeebe:ioMapping>
-          <zeebe:input source="= &#34;or-scheduling@hospital.internal&#34;" target="to" />
-          <zeebe:input source="= &#34;[STERILFLOW RELEASED] Trays Ready for OR - Batch #&#34; + requestId" target="subject" />
-          <zeebe:input source="= &#34;Medical equipment and surgical trays for request &#34; + requestId + &#34; have been sterilized, certified, and released for surgical use.&#34;" target="body" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
       <bpmn:incoming>Flow_CertGenerated</bpmn:incoming>
       <bpmn:outgoing>Flow_ReleaseNotified</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_EquipmentReleased" name="Equipment Released for Surgery">
-      <bpmn:incoming>Flow_ReleaseNotified</bpmn:incoming>
+      <bpmn:incoming>Flow_11bmwou</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="Task_FlagCorrectiveMaintenance" name="Flag Corrective Maintenance Ticket">
       <bpmn:extensionElements>
@@ -150,9 +138,8 @@
     <bpmn:sequenceFlow id="Flow_FinalApprovalNo" name="Rejected" sourceRef="Gateway_FinalApproval" targetRef="Task_FlagCorrectiveMaintenance">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">= finalApprovalPassed = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_StatusUpdated" sourceRef="Task_UpdateEquipmentStatus" targetRef="Task_GenerateSterilizationCert" />
-    <bpmn:sequenceFlow id="Flow_CertGenerated" sourceRef="Task_GenerateSterilizationCert" targetRef="Task_SendNotification" />
-    <bpmn:sequenceFlow id="Flow_ReleaseNotified" sourceRef="Task_SendNotification" targetRef="EndEvent_EquipmentReleased" />
+    <bpmn:sequenceFlow id="Flow_CertGenerated" sourceRef="Task_UpdateEquipmentStatus" targetRef="Task_GenerateSterilizationCert" />
+    <bpmn:sequenceFlow id="Flow_ReleaseNotified" sourceRef="Task_GenerateSterilizationCert" targetRef="Task_SendNotification" />
     <bpmn:sequenceFlow id="Flow_MaintFlagged" sourceRef="Task_FlagCorrectiveMaintenance" targetRef="EndEvent_QuarantinedForMaintenance" />
     <bpmn:subProcess id="SubProcess_MultiTrayProcessing" name="Parallel Surgical Tray Processing &#38; Verification (Multi-Instance)">
       <bpmn:incoming>Flow_CleaningPassedYes</bpmn:incoming>
@@ -281,13 +268,26 @@
       <bpmn:sequenceFlow id="Flow_TimeoutHandled" sourceRef="Task_AlertTimeout" targetRef="EndEvent_TimeoutHandled" />
     </bpmn:subProcess>
     <bpmn:sequenceFlow id="Flow_QualityHalt" sourceRef="BoundaryEvent_QualityRejected" targetRef="EndEvent_ProcessStoppedAtQuality" />
-    <bpmn:endEvent id="EndEvent_ProcessStoppedAtQuality" name="Process Stopped (Quality Check Rejected)">
-      <bpmn:incoming>Flow_QualityHalt</bpmn:incoming>
-    </bpmn:endEvent>
     <bpmn:boundaryEvent id="BoundaryEvent_QualityRejected" name="Quality Check Rejected" attachedToRef="SubProcess_MultiTrayProcessing">
       <bpmn:outgoing>Flow_QualityHalt</bpmn:outgoing>
       <bpmn:errorEventDefinition id="ErrorDef_SubQualityRejected" errorRef="Error_QualityRejected" />
     </bpmn:boundaryEvent>
+    <bpmn:endEvent id="EndEvent_ProcessStoppedAtQuality" name="Process Stopped (Quality Check Rejected)">
+      <bpmn:incoming>Flow_QualityHalt</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_SendNotification" name="Alert OR Scheduling Desk (Slack/Teams/Email Connector)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= &#34;or-scheduling@hospital.internal&#34;" target="to" />
+          <zeebe:input source="= &#34;[STERILFLOW RELEASED] Trays Ready for OR - Batch #&#34; + requestId" target="subject" />
+          <zeebe:input source="= &#34;Medical equipment and surgical trays for request &#34; + requestId + &#34; have been sterilized, certified, and released for surgical use.&#34;" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ReleaseNotified</bpmn:incoming>
+      <bpmn:outgoing>Flow_11bmwou</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_11bmwou" sourceRef="Task_SendNotification" targetRef="EndEvent_EquipmentReleased" />
   </bpmn:process>
   <bpmn:error id="Error_AutoclaveCycleFailed" name="AutoclaveCycleFailed" errorCode="ERR_AUTOCLAVE_FAILED" />
   <bpmn:error id="Error_QualityRejected" name="QualityRejected" errorCode="ERR_QUALITY_REJECTED" />
@@ -347,9 +347,6 @@
       <bpmndi:BPMNShape id="Task_GenerateSterilizationCert_di" bpmnElement="Task_GenerateSterilizationCert">
         <dc:Bounds x="1990" y="720" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendNotification_di" bpmnElement="Task_SendNotification">
-        <dc:Bounds x="2150" y="720" width="130" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_EquipmentReleased_di" bpmnElement="EndEvent_EquipmentReleased">
         <dc:Bounds x="2330" y="742" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -366,10 +363,13 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_ProcessStoppedAtQuality_di" bpmnElement="EndEvent_ProcessStoppedAtQuality">
-        <dc:Bounds x="1320" y="740" width="36" height="36" />
+        <dc:Bounds x="1320" y="722" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1275" y="785" width="126" height="40" />
+          <dc:Bounds x="1276" y="767" width="125" height="27" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendNotification_di" bpmnElement="Task_SendNotification">
+        <dc:Bounds x="2165" y="720" width="130" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="SubProcess_MultiTrayProcessing_di" bpmnElement="SubProcess_MultiTrayProcessing" isExpanded="true">
         <dc:Bounds x="750" y="290" width="1180" height="360" />
@@ -388,12 +388,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AlertTimeout_di" bpmnElement="Task_AlertTimeout">
         <dc:Bounds x="995" y="490" width="110" height="60" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_TimeoutHandled_di" bpmnElement="EndEvent_TimeoutHandled">
-        <dc:Bounds x="1032" y="582" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1010" y="618" width="81" height="14" />
-        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_VerifyChemicalIndicator_di" bpmnElement="Task_VerifyChemicalIndicator">
         <dc:Bounds x="1160" y="350" width="120" height="80" />
@@ -434,13 +428,19 @@
       <bpmndi:BPMNShape id="EndEvent_TrayProcessing_di" bpmnElement="EndEvent_TrayProcessing">
         <dc:Bounds x="1860" y="372" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1845" y="415" width="66" height="14" />
+          <dc:Bounds x="1845" y="353" width="66" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_TimeoutHandled_di" bpmnElement="EndEvent_TimeoutHandled">
+        <dc:Bounds x="1022" y="592" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1000" y="628" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BoundaryEvent_SterilizationError_di" bpmnElement="BoundaryEvent_SterilizationError">
         <dc:Bounds x="1082" y="412" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1096" y="455" width="88" height="27" />
+          <dc:Bounds x="1066" y="455" width="88" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BoundaryEvent_SterilizationTimeout_di" bpmnElement="BoundaryEvent_SterilizationTimeout">
@@ -480,9 +480,10 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ThermalAbort_di" bpmnElement="Flow_ThermalAbort">
-        <di:waypoint x="1100" y="448" />
-        <di:waypoint x="1100" y="530" />
-        <di:waypoint x="1260" y="530" />
+        <di:waypoint x="1118" y="430" />
+        <di:waypoint x="1150" y="430" />
+        <di:waypoint x="1150" y="510" />
+        <di:waypoint x="1260" y="510" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_QuarantineResolved_di" bpmnElement="Flow_QuarantineResolved">
         <di:waypoint x="1400" y="530" />
@@ -527,23 +528,23 @@
         <di:waypoint x="1878" y="408" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_TimeoutAlert_di" bpmnElement="Flow_TimeoutAlert">
-        <di:waypoint x="1030" y="448" />
-        <di:waypoint x="1030" y="490" />
+        <di:waypoint x="1050" y="448" />
+        <di:waypoint x="1050" y="490" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_TimeoutHandled_di" bpmnElement="Flow_TimeoutHandled">
-        <di:waypoint x="1030" y="550" />
-        <di:waypoint x="1030" y="582" />
+        <di:waypoint x="1040" y="550" />
+        <di:waypoint x="1040" y="592" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="BoundaryEvent_QualityRejected_di" bpmnElement="BoundaryEvent_QualityRejected">
+        <dc:Bounds x="1320" y="632" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1355" y="616" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BoundaryEvent_FinalSignoffTimer_di" bpmnElement="BoundaryEvent_FinalSignoffTimer">
         <dc:Bounds x="1562" y="782" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1485" y="825" width="80" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BoundaryEvent_QualityRejected_di" bpmnElement="BoundaryEvent_QualityRejected">
-        <dc:Bounds x="1320" y="632" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1245" y="668" width="85" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_01_di" bpmnElement="Flow_01">
@@ -610,25 +611,25 @@
           <dc:Bounds x="1738" y="830" width="45" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_StatusUpdated_di" bpmnElement="Flow_StatusUpdated">
-        <di:waypoint x="1840" y="760" />
-        <di:waypoint x="1870" y="760" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_CertGenerated_di" bpmnElement="Flow_CertGenerated">
+        <di:waypoint x="1950" y="760" />
         <di:waypoint x="1990" y="760" />
-        <di:waypoint x="2020" y="760" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ReleaseNotified_di" bpmnElement="Flow_ReleaseNotified">
-        <di:waypoint x="2150" y="760" />
-        <di:waypoint x="2192" y="760" />
+        <di:waypoint x="2110" y="760" />
+        <di:waypoint x="2165" y="760" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_MaintFlagged_di" bpmnElement="Flow_MaintFlagged">
-        <di:waypoint x="1840" y="890" />
-        <di:waypoint x="1892" y="890" />
+        <di:waypoint x="1920" y="890" />
+        <di:waypoint x="1980" y="890" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_QualityHalt_di" bpmnElement="Flow_QualityHalt">
         <di:waypoint x="1338" y="668" />
-        <di:waypoint x="1338" y="740" />
+        <di:waypoint x="1338" y="722" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11bmwou_di" bpmnElement="Flow_11bmwou">
+        <di:waypoint x="2295" y="760" />
+        <di:waypoint x="2330" y="760" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
