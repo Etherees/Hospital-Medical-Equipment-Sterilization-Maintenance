@@ -71,7 +71,7 @@ export default function WorkflowTrackingPage() {
           </h1>
         </div>
 
-        {/* Instance Selector Dropdown */}
+        {/* Instance Selector Dropdown & Camunda Operate Link */}
         <div className="flex items-center space-x-3">
           <select
             value={selectedInstanceId}
@@ -84,6 +84,18 @@ export default function WorkflowTrackingPage() {
               </option>
             ))}
           </select>
+          {selectedInstanceId && (
+            <a
+              href={`http://localhost:8080/operate/processes/${selectedInstanceId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-orange-600/20 text-orange-400 border border-orange-500/50 hover:bg-orange-600/30 transition-all text-xs font-mono font-semibold shadow-sm"
+              title="Open this instance live in Camunda Operate"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>View in Camunda Operate</span>
+            </a>
+          )}
           <button
             onClick={fetchInstances}
             className="p-1.5 rounded-lg bg-steril-charcoal border border-steril-border hover:border-steril-green text-steril-green"

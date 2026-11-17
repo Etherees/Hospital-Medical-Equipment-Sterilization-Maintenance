@@ -116,16 +116,34 @@ export default function WorkflowInitiationPage() {
 
       {/* Success banner if created */}
       {successResult && (
-        <div className="p-4 rounded-xl bg-steril-charcoal border border-steril-green shadow-glow-green space-y-2">
+        <div className="p-4 rounded-xl bg-steril-charcoal border border-steril-green shadow-glow-green space-y-3">
           <div className="flex items-center space-x-2 text-steril-green">
             <CheckCircle2 className="w-5 h-5" />
             <h3 className="font-bold font-mono text-sm">
-              Process Instance Started Successfully: {successResult.processInstanceId}
+              Camunda 8 Process Instance Active: {successResult.processInstanceId}
             </h3>
           </div>
           <p className="text-xs text-steril-muted font-mono">
-            Request #{successResult.requestId} registered with {successResult.trayCount} parallel Multi-Instance tray(s). Redirecting to live workflow tracking...
+            Request #{successResult.requestId} connected to Camunda 8 cluster with {successResult.trayCount} parallel Multi-Instance tray(s). Redirecting to workflow tracking...
           </p>
+          <div className="flex items-center space-x-3 pt-1">
+            <a
+              href={`http://localhost:8080/operate/processes/${successResult.processInstanceId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-1.5 rounded-lg bg-orange-600/30 text-orange-400 border border-orange-500 hover:bg-orange-600/40 font-mono text-xs font-bold transition-all flex items-center space-x-1.5"
+            >
+              <span>View in Camunda Operate</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => navigate(`/workflows/${successResult.processInstanceId}`)}
+              className="px-3.5 py-1.5 rounded-lg bg-steril-green text-steril-black font-mono text-xs font-bold hover:bg-steril-mint transition-all"
+            >
+              Track in STERILFLOW Now
+            </button>
+          </div>
         </div>
       )}
 

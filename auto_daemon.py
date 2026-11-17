@@ -152,6 +152,19 @@ def run_daemon():
                     step_count += 1
                     print(f"[{time.strftime('%H:%M:%S')}] Step {step_count}: Node <{elem}> ({jtype}) Completed for Instance {inst}", flush=True)
 
+                    # Interconnect: Sync step with Spring Boot backend so website advances in lockstep
+                    sync_payload = {
+                        "processInstanceId": str(inst),
+                        "elementId": elem,
+                        "requestId": vars_to_send.get("requestId", unpacked.get("requestId", raw_vars.get("requestId", ""))),
+                        "equipmentId": vars_to_send.get("equipmentId", unpacked.get("equipmentId", raw_vars.get("equipmentId", ""))),
+                        "department": vars_to_send.get("department", unpacked.get("department", raw_vars.get("department", ""))),
+                        "assignedTechnician": vars_to_send.get("assignedTechnician", unpacked.get("assignedTechnician", raw_vars.get("assignedTechnician", ""))),
+                        "status": "COMPLETED" if elem in ("Task_UpdateEquipmentStatus", "Task_GenerateSterilizationCert", "Task_SendNotification") else "IN_PROGRESS"
+                    }
+                    post_json("http://localhost:8085/api/workflows/sync-step", sync_payload)
+                    time.sleep(1.2)
+
         # Print heartbeat every 15 seconds if idle so user knows daemon is alive
         if not work_done:
             now = time.time()
