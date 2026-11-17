@@ -81,20 +81,39 @@ public class SterilizationWorkflowController {
         // Map BPMN element to 10-stage execution plan
         if ("Task_RegisterEquipment".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("INITIAL_INSPECTION");
+            ensureWorkflowTask(req, "Initial Inspection", "cssd-technician", "camunda-forms:bpmn:initial-inspection-form");
         } else if ("Task_InitialInspection".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("CLEANING_VERIFICATION");
         } else if ("Task_VerifyCleaning".equalsIgnoreCase(elementId)) {
-            req.setCurrentStage("STERILIZATION_INITIATION");
+            Object cleanPassed = body.get("cleaningPassed");
+            if (Boolean.FALSE.equals(cleanPassed) || "false".equalsIgnoreCase(String.valueOf(cleanPassed))) {
+                req.setCurrentStage("CLEANING_REWORK");
+                req.setCleaningPassed(false);
+                ensureWorkflowTask(req, "Cleaning Rework & Ultrasonic Wash", "cssd-technician", "camunda-forms:bpmn:cleaning-rework-form");
+            } else {
+                req.setCurrentStage("STERILIZATION_INITIATION");
+                req.setCleaningPassed(true);
+            }
+        } else if ("Task_CleaningRework".equalsIgnoreCase(elementId)) {
+            req.setCurrentStage("CLEANING_REWORK");
+            req.setCleaningPassed(false);
+            ensureWorkflowTask(req, "Cleaning Rework & Ultrasonic Wash", "cssd-technician", "camunda-forms:bpmn:cleaning-rework-form");
         } else if ("Task_ExecuteSterilizationCycle".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("AUTOCLAVE_PROCESSING");
         } else if ("Task_VerifyChemicalIndicator".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("CHEMICAL_INDICATOR_CHECK");
         } else if ("Task_QualityInspection".equalsIgnoreCase(elementId)) {
-            req.setCurrentStage("QUALITY_INSPECTION");
+            req.setCurrentStage("FINAL_APPROVAL");
+            ensureWorkflowTask(req, "Final Quality Sign-Off", "qa-manager", "camunda-forms:bpmn:quality-signoff-form");
         } else if ("CallActivity_BiomedicalCalibration".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("CALIBRATION");
         } else if ("Task_FinalQualitySignoff".equalsIgnoreCase(elementId)) {
             req.setCurrentStage("FINAL_APPROVAL");
+            ensureWorkflowTask(req, "Final Quality Sign-Off", "qa-manager", "camunda-forms:bpmn:quality-signoff-form");
+        } else if ("Task_FlagCorrectiveMaintenance".equalsIgnoreCase(elementId) || "EndEvent_QuarantinedForMaintenance".equalsIgnoreCase(elementId)) {
+            req.setCurrentStage("QUARANTINED");
+            req.setStatus("QUARANTINED");
+            req.setCompletedAt(LocalDateTime.now());
         } else if ("Task_UpdateEquipmentStatus".equalsIgnoreCase(elementId) 
                 || "Task_GenerateSterilizationCert".equalsIgnoreCase(elementId) 
                 || "Task_SendNotification".equalsIgnoreCase(elementId)
@@ -110,6 +129,32 @@ public class SterilizationWorkflowController {
         res.put("stage", req.getCurrentStage());
         res.put("status", req.getStatus());
         return ApiResponse.ok("Stage synchronized successfully", res);
+    }
+
+    private void ensureWorkflowTask(SterilizationRequest req, String taskName, String candidateGroup, String formKey) {
+        try {
+            List<WorkflowTask> existing = tasklistService.getTasksByProcessInstance(req.getProcessInstanceId());
+            boolean hasActive = existing.stream().anyMatch(t -> taskName.equalsIgnoreCase(t.getTaskName()) && !"COMPLETED".equals(t.getStatus()));
+            if (!hasActive) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("requestId", req.getRequestId());
+                payload.put("department", req.getDepartment());
+                payload.put("equipmentId", req.getEquipmentId());
+                workflowService.createWorkflowTask(
+                    taskName,
+                    req.getProcessInstanceId(),
+                    req.getRequestId(),
+                    null,
+                    null,
+                    candidateGroup,
+                    req.getPriority() != null ? req.getPriority() : "HIGH",
+                    formKey,
+                    payload
+                );
+            }
+        } catch (Exception e) {
+            // Log and continue
+        }
     }
 
     @GetMapping("/instances")
@@ -184,6 +229,9 @@ public class SterilizationWorkflowController {
                 currentStageIdx = i;
                 break;
             }
+        }
+        if ("CLEANING_REWORK".equalsIgnoreCase(req.getCurrentStage())) {
+            currentStageIdx = 1;
         }
         if ("COMPLETED".equals(req.getStatus())) {
             currentStageIdx = 9;

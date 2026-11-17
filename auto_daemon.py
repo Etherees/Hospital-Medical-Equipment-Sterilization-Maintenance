@@ -6,10 +6,12 @@ import sys
 
 CAMUNDA_BASE = "http://localhost:8080"
 
+# Note: Human approval tasks ("io.camunda.zeebe:userTask") are deliberately excluded
+# so that Camunda 8 halts and WAITS for actual technician sign-offs on http://localhost:5173/tasks.
 JOB_TYPES = [
     "register-equipment",
     "verify-cleaning",
-    "io.camunda.zeebe:userTask",
+    "quality-inspection",
     "execute-sterilization-cycle",
     "verify-chemical-indicator",
     "update-equipment-status",
@@ -65,8 +67,14 @@ def check_camunda_connection():
 
 def run_daemon():
     check_camunda_connection()
-    print("[DAEMON] Sterilflow Universal Workflow Daemon Active & Listening...", flush=True)
-    print("[DAEMON] Any workflow started from Camunda Desktop Modeler, Operate, or Launcher will auto-advance to end.", flush=True)
+    print("==================================================================", flush=True)
+    print("   STERILFLOW 2.0 - CAMUNDA 8 AUTOMATED SERVICE TASK WORKER", flush=True)
+    print("==================================================================", flush=True)
+    print("[*] Service tasks: Automated execution (Autoclave, Chemical Check, Wash, Certs)", flush=True)
+    print("[*] Human tasks:   WAITING for Technician approval on http://localhost:5173/tasks", flush=True)
+    print("[*] Failure path:  Supports Cleaning Rework loop and Maintenance Quarantine", flush=True)
+    print("==================================================================", flush=True)
+    
     step_count = 0
     last_heartbeat = time.time()
 
@@ -101,11 +109,36 @@ def run_daemon():
                         if isinstance(inner, dict):
                             unpacked.update(inner)
 
-                    # 2. Extract user choices with smart defaults
-                    cleaning_passed = unpacked.get("cleaningPassed", raw_vars.get("cleaningPassed", True))
-                    chemical_passed = unpacked.get("chemicalIndicatorPassed", raw_vars.get("chemicalIndicatorPassed", True))
-                    final_passed = unpacked.get("finalApprovalPassed", raw_vars.get("finalApprovalPassed", True))
-                    tolerance_passed = unpacked.get("tolerancePassed", raw_vars.get("tolerancePassed", True))
+                    # 2. Extract user choices with strict evaluation of failure states
+                    # Check both raw_vars and unpacked for initial inspection outcome
+                    raw_clean = raw_vars.get("cleaningPassed", None)
+                    raw_initial = raw_vars.get("initialInspectionPassed", None)
+                    raw_final = raw_vars.get("finalApprovalPassed", None)
+                    raw_chem = raw_vars.get("chemicalIndicatorPassed", None)
+
+                    cleaning_passed = True
+                    if raw_clean is False or str(raw_clean).lower() == "false":
+                        cleaning_passed = False
+                    if raw_initial is False or str(raw_initial).lower() == "false":
+                        cleaning_passed = False
+                    if "cleaningPassed" in unpacked and (unpacked["cleaningPassed"] is False or str(unpacked["cleaningPassed"]).lower() == "false"):
+                        cleaning_passed = False
+                    if "initialInspectionPassed" in unpacked and (unpacked["initialInspectionPassed"] is False or str(unpacked["initialInspectionPassed"]).lower() == "false"):
+                        cleaning_passed = False
+
+                    chemical_passed = True
+                    if raw_chem is False or str(raw_chem).lower() == "false":
+                        chemical_passed = False
+                    if "chemicalIndicatorPassed" in unpacked and (unpacked["chemicalIndicatorPassed"] is False or str(unpacked["chemicalIndicatorPassed"]).lower() == "false"):
+                        chemical_passed = False
+
+                    final_passed = True
+                    if raw_final is False or str(raw_final).lower() == "false":
+                        final_passed = False
+                    if "finalApprovalPassed" in unpacked and (unpacked["finalApprovalPassed"] is False or str(unpacked["finalApprovalPassed"]).lower() == "false"):
+                        final_passed = False
+
+                    tolerance_passed = raw_vars.get("tolerancePassed", True)
                     
                     # Tray-level calibration check
                     current_tray = raw_vars.get("currentTray", {})
@@ -121,6 +154,7 @@ def run_daemon():
                     vars_to_send = {
                         "equipmentRegistered": True,
                         "cleaningPassed": cleaning_passed,
+                        "initialInspectionPassed": cleaning_passed,
                         "chemicalIndicatorPassed": chemical_passed,
                         "finalApprovalPassed": final_passed,
                         "tolerancePassed": tolerance_passed,
@@ -132,25 +166,29 @@ def run_daemon():
                         "isoStandardCompliance": "ISO 17665 / EN 285"
                     }
 
-                    # If this was Task_RegisterEquipment, elevate all unpacked variables to top level
+                    # Node-specific variable overrides
                     if elem == "Task_RegisterEquipment" and unpacked:
                         vars_to_send.update(unpacked)
 
-                    # If rework was executed, set cleaningPassed = True to exit rework loop
-                    if elem == "Task_CleaningRework":
-                        vars_to_send["cleaningPassed"] = True
+                    if elem == "Task_VerifyCleaning":
+                        vars_to_send["cleaningPassed"] = cleaning_passed
+                        vars_to_send["initialInspectionPassed"] = cleaning_passed
 
-                    # For quality inspection, preserve tray calibration state
                     if elem == "Task_QualityInspection":
                         vars_to_send["currentTray"] = {
                             "calibrationRequired": calib_required
                         }
 
+                    if elem == "Task_FlagCorrectiveMaintenance":
+                        vars_to_send["equipmentStatus"] = "QUARANTINED"
+                        vars_to_send["finalApprovalPassed"] = False
+
                     # Execute completion
                     comp_url = f"{CAMUNDA_BASE}/v2/jobs/{jkey}/completion"
                     post_json(comp_url, {"variables": vars_to_send})
                     step_count += 1
-                    print(f"[{time.strftime('%H:%M:%S')}] Step {step_count}: Node <{elem}> ({jtype}) Completed for Instance {inst}", flush=True)
+                    status_note = "PASSED" if cleaning_passed else "FAILED (ROUTING TO REWORK)"
+                    print(f"[{time.strftime('%H:%M:%S')}] Step {step_count}: Node <{elem}> ({jtype}) Completed for Instance {inst} - {status_note}", flush=True)
 
                     # Interconnect: Sync step with Spring Boot backend so website advances in lockstep
                     sync_payload = {
@@ -160,16 +198,19 @@ def run_daemon():
                         "equipmentId": vars_to_send.get("equipmentId", unpacked.get("equipmentId", raw_vars.get("equipmentId", ""))),
                         "department": vars_to_send.get("department", unpacked.get("department", raw_vars.get("department", ""))),
                         "assignedTechnician": vars_to_send.get("assignedTechnician", unpacked.get("assignedTechnician", raw_vars.get("assignedTechnician", ""))),
-                        "status": "COMPLETED" if elem in ("Task_UpdateEquipmentStatus", "Task_GenerateSterilizationCert", "Task_SendNotification") else "IN_PROGRESS"
+                        "status": "COMPLETED" if elem in ("Task_UpdateEquipmentStatus", "Task_GenerateSterilizationCert", "Task_SendNotification") 
+                                  else ("QUARANTINED" if elem == "Task_FlagCorrectiveMaintenance" else "IN_PROGRESS"),
+                        "cleaningPassed": cleaning_passed,
+                        "finalApprovalPassed": final_passed
                     }
                     post_json("http://localhost:8085/api/workflows/sync-step", sync_payload)
-                    time.sleep(1.2)
+                    time.sleep(1.0)
 
         # Print heartbeat every 15 seconds if idle so user knows daemon is alive
         if not work_done:
             now = time.time()
             if now - last_heartbeat > 15:
-                print(f"[{time.strftime('%H:%M:%S')}] [DAEMON] Listening for incoming workflow instances... (Steps completed so far: {step_count})", flush=True)
+                print(f"[{time.strftime('%H:%M:%S')}] [DAEMON] Listening for incoming workflow instances... (Steps completed: {step_count})", flush=True)
                 last_heartbeat = now
             time.sleep(0.3)
 
